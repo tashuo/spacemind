@@ -213,7 +213,7 @@ describe('MessageSchema', () => {
     }
   })
 
-  it('rejects empty content', () => {
+  it('allows empty content (real exports may have empty messages)', () => {
     const r = MessageSchema.safeParse({
       id: 'm1',
       conversationId: 'c1',
@@ -221,7 +221,7 @@ describe('MessageSchema', () => {
       content: '',
       timestamp: 0,
     })
-    expect(r.success).toBe(false)
+    expect(r.success).toBe(true)
   })
 
   it('rejects unknown role', () => {
@@ -258,6 +258,12 @@ describe('AppSettingsSchema', () => {
       expect(r.data.managerShortcut).toBe('Meta+Shift+M')
       expect(r.data.lastZipImports).toEqual({})
     }
+  })
+
+  it('defaults newtabOverride to false', () => {
+    const r = AppSettingsSchema.safeParse({})
+    if (!r.success) throw new Error('parse failed')
+    expect(r.data.newtabOverride).toBe(false)
   })
 
   it('accepts a fully specified settings object', () => {

@@ -57,7 +57,7 @@ export const MessageSchema = z.object({
   id: z.string().min(1),
   conversationId: z.string().min(1),
   role: RoleSchema,
-  content: z.string().min(1),
+  content: z.string(),  // empty allowed: real exports may contain empty messages (tool turns, aborts)
   timestamp: z.number(),
 })
 export type Message = z.infer<typeof MessageSchema>
@@ -67,6 +67,7 @@ export const AppSettingsSchema = z.object({
   language: z.enum(['en', 'zh-CN']).default('en'),
   overlayShortcut: z.string().default('Meta+M'),
   managerShortcut: z.string().default('Meta+Shift+M'),
+  newtabOverride: z.boolean().default(false),
   lastZipImports: z
     .object({
       chatgpt: z.number().optional(),
