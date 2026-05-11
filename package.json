@@ -1,0 +1,30 @@
+{
+  "name": "spacemind",
+  "description": "Cross-platform AI conversation manager with project spaces. Local-first, MIT.",
+  "private": true,
+  "version": "0.1.0",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "wxt",
+    "dev:firefox": "wxt -b firefox",
+    "build": "wxt build",
+    "build:firefox": "wxt build -b firefox",
+    "zip": "wxt zip",
+    "zip:firefox": "wxt zip -b firefox",
+    "compile": "tsc --noEmit",
+    "postinstall": "wxt prepare"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.1.40",
+    "@types/react": "^18.3.28",
+    "@types/react-dom": "^18.3.7",
+    "@wxt-dev/module-react": "^1.1.5",
+    "typescript": "^5.9.3",
+    "wxt": "^0.20.25"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  }
+}
