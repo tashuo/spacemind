@@ -56,8 +56,8 @@ export function useTheme(): {
 
     const mql = window.matchMedia('(prefers-color-scheme: dark)')
     const onSystemChange = () => {
-      // 只有 system 模式才跟随
-      if (pref === 'system') applyDocumentTheme('system')
+      // Always re-apply; the pref-watching effect below will correct it if pref !== 'system'.
+      applyDocumentTheme('system')
     }
     mql.addEventListener('change', onSystemChange)
 
@@ -87,7 +87,6 @@ export function useTheme(): {
         // ignore
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // 当 pref 变化时,重新应用主题
