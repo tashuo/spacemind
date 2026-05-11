@@ -13,14 +13,20 @@
     "zip": "wxt zip",
     "zip:firefox": "wxt zip -b firefox",
     "compile": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "postinstall": "wxt prepare"
   },
   "devDependencies": {
     "@types/chrome": "^0.1.40",
     "@types/react": "^18.3.28",
     "@types/react-dom": "^18.3.7",
+    "@vitest/ui": "^4.1.6",
     "@wxt-dev/module-react": "^1.1.5",
+    "fake-indexeddb": "^6.2.5",
+    "happy-dom": "^20.9.0",
     "typescript": "^5.9.3",
+    "vitest": "^4.1.6",
     "wxt": "^0.20.25"
   },
   "dependencies": {
