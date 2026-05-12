@@ -9,8 +9,18 @@ export default defineConfig({
     description: 'Cross-platform AI conversation manager with project spaces. Local-first, MIT.',
     version: '0.1.0',
     permissions: ['storage'],
+    host_permissions: ['https://chatgpt.com/*', 'https://claude.ai/*'],
     action: {
       default_title: 'SpaceMind',
+    },
+    commands: {
+      'open-overlay': {
+        suggested_key: {
+          default: 'Ctrl+Shift+J',
+          mac: 'Command+Shift+J',
+        },
+        description: 'Toggle SpaceMind overlay on supported AI sites',
+      },
     },
   },
 })
