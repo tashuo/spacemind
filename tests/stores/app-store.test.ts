@@ -2,13 +2,22 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import 'fake-indexeddb/auto'
 import { useAppStore } from '@/stores/app-store'
 import * as db from '@/lib/db'
+import type { Conversation } from '@/lib/schema'
 
 // 每个 case 前清库 + 重置 store —— 避免 idb 拿着旧句柄、store 残留上一个 case 的 spaces。
 // 先 close 老连接再 deleteDatabase,否则 fake-indexeddb 会卡在 versionchange。
 beforeEach(async () => {
   await db.__resetForTest()
   await indexedDB.deleteDatabase('spacemind')
-  useAppStore.setState({ loaded: false, spaces: [], toasts: [] })
+  useAppStore.setState({
+    loaded: false,
+    spaces: [],
+    conversations: [],
+    toasts: [],
+    selectedConvIds: new Set(),
+  })
+  // anchorConvId 是模块级状态,setState 接触不到 —— 必须显式调用 clearSelection 把它清掉
+  useAppStore.getState().clearSelection()
 })
 
 afterEach(() => {
@@ -178,5 +187,308 @@ describe('app-store.pushToast / dismissToast', () => {
 
     vi.advanceTimersByTime(2)
     expect(useAppStore.getState().toasts).toHaveLength(0)
+  })
+})
+
+// 测试夹具:批量造 conversation,直接写入 IDB 并刷到 store 状态,贴近真实路径
+const mkConversation = (overrides: Partial<Conversation> = {}): Conversation => ({
+  id: 'c1',
+  platform: 'chatgpt',
+  url: 'https://chatgpt.com/c/c1',
+  title: 'Test',
+  tags: [],
+  starred: false,
+  capturedAt: 0,
+  ...overrides,
+})
+
+async function seedConversations(rows: Conversation[]): Promise<void> {
+  for (const r of rows) await db.putConversation(r)
+  useAppStore.setState({ conversations: rows })
+}
+
+describe('app-store.setEmoji', () => {
+  it('sets emoji on an existing space and persists', async () => {
+    await useAppStore.getState().load()
+    const id = await useAppStore.getState().createSpace('Work', 'indigo')
+    await useAppStore.getState().setEmoji(id, '🚀')
+    expect(useAppStore.getState().spaces.find((s) => s.id === id)?.emoji).toBe('🚀')
+    const fromDb = await db.getSpace(id)
+    expect(fromDb?.emoji).toBe('🚀')
+  })
+
+  it('clears emoji when given empty string', async () => {
+    await useAppStore.getState().load()
+    const id = await useAppStore.getState().createSpace('Work', 'indigo')
+    await useAppStore.getState().setEmoji(id, '🚀')
+    await useAppStore.getState().setEmoji(id, '')
+    const s = useAppStore.getState().spaces.find((sp) => sp.id === id)
+    expect(s?.emoji).toBeUndefined()
+  })
+
+  it('clears emoji when given undefined', async () => {
+    await useAppStore.getState().load()
+    const id = await useAppStore.getState().createSpace('Work', 'indigo')
+    await useAppStore.getState().setEmoji(id, '🎯')
+    await useAppStore.getState().setEmoji(id, undefined)
+    const s = useAppStore.getState().spaces.find((sp) => sp.id === id)
+    expect(s?.emoji).toBeUndefined()
+  })
+
+  it('is a no-op when id is unknown', async () => {
+    await useAppStore.getState().load()
+    await useAppStore.getState().setEmoji('ghost', '🚀')
+    expect(useAppStore.getState().spaces).toEqual([])
+  })
+
+  it('rolls back on IDB failure', async () => {
+    await useAppStore.getState().load()
+    const id = await useAppStore.getState().createSpace('Work', 'indigo')
+    const snapshot = useAppStore.getState().spaces
+    vi.spyOn(db, 'putSpace').mockRejectedValueOnce(new Error('boom'))
+    await expect(useAppStore.getState().setEmoji(id, '🚀')).rejects.toThrow()
+    expect(useAppStore.getState().spaces).toEqual(snapshot)
+  })
+})
+
+describe('app-store.setNote', () => {
+  it('sets note and clears it with empty string', async () => {
+    await useAppStore.getState().load()
+    const id = await useAppStore.getState().createSpace('Work', 'indigo')
+    await useAppStore.getState().setNote(id, 'remember this')
+    expect(useAppStore.getState().spaces.find((s) => s.id === id)?.note).toBe(
+      'remember this'
+    )
+    await useAppStore.getState().setNote(id, '')
+    expect(useAppStore.getState().spaces.find((s) => s.id === id)?.note).toBeUndefined()
+  })
+})
+
+describe('app-store.togglePin', () => {
+  it('flips pin state and bumps updatedAt', async () => {
+    await useAppStore.getState().load()
+    const id = await useAppStore.getState().createSpace('Work', 'indigo')
+    const before = useAppStore.getState().spaces.find((s) => s.id === id)!
+    expect(before.pinned).toBeUndefined()
+
+    await new Promise((r) => setTimeout(r, 2))
+    await useAppStore.getState().togglePin(id)
+    const afterPin = useAppStore.getState().spaces.find((s) => s.id === id)!
+    expect(afterPin.pinned).toBe(true)
+    expect(afterPin.updatedAt).toBeGreaterThanOrEqual(before.updatedAt)
+
+    await useAppStore.getState().togglePin(id)
+    const unpinned = useAppStore.getState().spaces.find((s) => s.id === id)!
+    expect(unpinned.pinned).toBeUndefined()
+  })
+
+  it('pinned spaces sort to the top in state', async () => {
+    await useAppStore.getState().load()
+    const a = await useAppStore.getState().createSpace('A', 'indigo')
+    await useAppStore.getState().createSpace('B', 'emerald')
+    // B 是最近创建,默认排在最前;给 A 加 pin 后应翻到顶部
+    await useAppStore.getState().togglePin(a)
+    expect(useAppStore.getState().spaces[0]?.id).toBe(a)
+  })
+})
+
+describe('app-store.setSortIndex', () => {
+  it('updates sortIndex and persists', async () => {
+    await useAppStore.getState().load()
+    const a = await useAppStore.getState().createSpace('A', 'indigo')
+    const b = await useAppStore.getState().createSpace('B', 'emerald')
+    await useAppStore.getState().setSortIndex(a, 1)
+    await useAppStore.getState().setSortIndex(b, 0)
+    // 排序后 b 在前(sortIndex 0 < 1)
+    expect(useAppStore.getState().spaces.map((s) => s.id)).toEqual([b, a])
+  })
+})
+
+describe('app-store.moveConversationToSpace', () => {
+  it('moves a conversation to a specific space (state + IDB)', async () => {
+    await useAppStore.getState().load()
+    await seedConversations([mkConversation({ id: 'c1' })])
+    await useAppStore.getState().moveConversationToSpace('c1', 's1')
+    expect(
+      useAppStore.getState().conversations.find((c) => c.id === 'c1')?.spaceId
+    ).toBe('s1')
+    expect((await db.getConversation('c1'))?.spaceId).toBe('s1')
+  })
+
+  it('removes spaceId when called with null (not stored as undefined)', async () => {
+    await useAppStore.getState().load()
+    await seedConversations([mkConversation({ id: 'c1', spaceId: 's1' })])
+    await useAppStore.getState().moveConversationToSpace('c1', null)
+    const inState = useAppStore.getState().conversations.find((c) => c.id === 'c1')!
+    expect('spaceId' in inState).toBe(false)
+    const inDb = (await db.getConversation('c1'))!
+    expect('spaceId' in inDb).toBe(false)
+  })
+
+  it('is a no-op when conversation id is unknown', async () => {
+    await useAppStore.getState().load()
+    await useAppStore.getState().moveConversationToSpace('ghost', 's1')
+    expect(useAppStore.getState().conversations).toEqual([])
+  })
+
+  it('rolls back on IDB failure', async () => {
+    await useAppStore.getState().load()
+    await seedConversations([mkConversation({ id: 'c1' })])
+    const snapshot = useAppStore.getState().conversations
+    vi.spyOn(db, 'putConversation').mockRejectedValueOnce(new Error('boom'))
+    await expect(
+      useAppStore.getState().moveConversationToSpace('c1', 's1')
+    ).rejects.toThrow()
+    expect(useAppStore.getState().conversations).toEqual(snapshot)
+  })
+})
+
+describe('app-store.moveConversationsToSpace', () => {
+  it('moves all listed conversations in one batch', async () => {
+    await useAppStore.getState().load()
+    await seedConversations([
+      mkConversation({ id: 'c1', url: 'https://chatgpt.com/c/c1' }),
+      mkConversation({ id: 'c2', url: 'https://chatgpt.com/c/c2' }),
+      mkConversation({ id: 'c3', url: 'https://chatgpt.com/c/c3' }),
+    ])
+    await useAppStore.getState().moveConversationsToSpace(['c1', 'c2'], 's1')
+    const byId = (id: string) =>
+      useAppStore.getState().conversations.find((c) => c.id === id)
+    expect(byId('c1')?.spaceId).toBe('s1')
+    expect(byId('c2')?.spaceId).toBe('s1')
+    expect(byId('c3')?.spaceId).toBeUndefined()
+    expect((await db.getConversation('c1'))?.spaceId).toBe('s1')
+    expect((await db.getConversation('c2'))?.spaceId).toBe('s1')
+  })
+
+  it('null spaceId removes the field in state and IDB', async () => {
+    await useAppStore.getState().load()
+    await seedConversations([
+      mkConversation({ id: 'c1', spaceId: 's1' }),
+      mkConversation({ id: 'c2', spaceId: 's1', url: 'https://chatgpt.com/c/c2' }),
+    ])
+    await useAppStore.getState().moveConversationsToSpace(['c1', 'c2'], null)
+    const c1 = useAppStore.getState().conversations.find((c) => c.id === 'c1')!
+    expect('spaceId' in c1).toBe(false)
+    const inDb = (await db.getConversation('c2'))!
+    expect('spaceId' in inDb).toBe(false)
+  })
+
+  it('empty ids is a no-op', async () => {
+    await useAppStore.getState().load()
+    await seedConversations([mkConversation({ id: 'c1' })])
+    await useAppStore.getState().moveConversationsToSpace([], 's1')
+    expect(
+      useAppStore.getState().conversations.find((c) => c.id === 'c1')?.spaceId
+    ).toBeUndefined()
+  })
+})
+
+describe('app-store.removeConversations', () => {
+  it('removes from state, IDB rows, and cascades messages', async () => {
+    await useAppStore.getState().load()
+    await seedConversations([
+      mkConversation({ id: 'c1', url: 'https://chatgpt.com/c/c1' }),
+      mkConversation({ id: 'c2', url: 'https://chatgpt.com/c/c2' }),
+    ])
+    await db.bulkPutMessages([
+      {
+        id: 'm1',
+        conversationId: 'c1',
+        role: 'user',
+        content: 'hi',
+        timestamp: 0,
+      },
+      {
+        id: 'm2',
+        conversationId: 'c2',
+        role: 'user',
+        content: 'hey',
+        timestamp: 0,
+      },
+    ])
+
+    await useAppStore.getState().removeConversations(['c1'])
+
+    expect(useAppStore.getState().conversations.map((c) => c.id)).toEqual(['c2'])
+    expect(await db.getConversation('c1')).toBeUndefined()
+    expect(await db.messagesForConversation('c1')).toEqual([])
+    // c2 不受影响
+    expect((await db.messagesForConversation('c2')).map((m) => m.id)).toEqual(['m2'])
+  })
+
+  it('also drops the removed ids from selectedConvIds', async () => {
+    await useAppStore.getState().load()
+    await seedConversations([
+      mkConversation({ id: 'c1' }),
+      mkConversation({ id: 'c2', url: 'https://chatgpt.com/c/c2' }),
+    ])
+    useAppStore.setState({ selectedConvIds: new Set(['c1', 'c2']) })
+    await useAppStore.getState().removeConversations(['c1'])
+    expect(Array.from(useAppStore.getState().selectedConvIds)).toEqual(['c2'])
+  })
+
+  it('empty ids is a no-op', async () => {
+    await useAppStore.getState().load()
+    await seedConversations([mkConversation({ id: 'c1' })])
+    await useAppStore.getState().removeConversations([])
+    expect(useAppStore.getState().conversations.map((c) => c.id)).toEqual(['c1'])
+  })
+})
+
+describe('app-store.selectConv / clearSelection', () => {
+  it("'toggle' adds then removes membership", () => {
+    useAppStore.getState().selectConv('a', 'toggle')
+    expect(Array.from(useAppStore.getState().selectedConvIds)).toEqual(['a'])
+    useAppStore.getState().selectConv('a', 'toggle')
+    expect(Array.from(useAppStore.getState().selectedConvIds)).toEqual([])
+  })
+
+  it("'replace' sets the selection to exactly that id", () => {
+    useAppStore.setState({ selectedConvIds: new Set(['x', 'y', 'z']) })
+    useAppStore.getState().selectConv('only', 'replace')
+    expect(Array.from(useAppStore.getState().selectedConvIds)).toEqual(['only'])
+  })
+
+  it("'range' across multiple visibleIds selects inclusive range", () => {
+    // 先点 'b' 设 anchor,再 shift+click 'd' → 应包含 b/c/d
+    useAppStore.getState().selectConv('b', 'replace')
+    useAppStore.getState().selectConv('d', 'range', ['a', 'b', 'c', 'd', 'e'])
+    const sel = Array.from(useAppStore.getState().selectedConvIds).sort()
+    expect(sel).toEqual(['b', 'c', 'd'])
+  })
+
+  it("'range' with reverse direction still picks inclusive set", () => {
+    useAppStore.getState().selectConv('d', 'replace')
+    useAppStore.getState().selectConv('a', 'range', ['a', 'b', 'c', 'd'])
+    const sel = Array.from(useAppStore.getState().selectedConvIds).sort()
+    expect(sel).toEqual(['a', 'b', 'c', 'd'])
+  })
+
+  it("'range' without prior anchor degenerates to 'replace'", () => {
+    // 未点过任何 id 就 shift+click 应等价于普通点击
+    useAppStore.getState().selectConv('c', 'range', ['a', 'b', 'c', 'd'])
+    expect(Array.from(useAppStore.getState().selectedConvIds)).toEqual(['c'])
+  })
+
+  it("'toggle' updates the anchor for subsequent 'range'", () => {
+    useAppStore.getState().selectConv('a', 'toggle')
+    useAppStore.getState().selectConv('c', 'range', ['a', 'b', 'c'])
+    const sel = Array.from(useAppStore.getState().selectedConvIds).sort()
+    expect(sel).toEqual(['a', 'b', 'c'])
+  })
+
+  it('clearSelection empties the set', () => {
+    useAppStore.setState({ selectedConvIds: new Set(['a', 'b']) })
+    useAppStore.getState().clearSelection()
+    expect(useAppStore.getState().selectedConvIds.size).toBe(0)
+  })
+
+  it('clearSelection also clears the anchor', () => {
+    // 给 anchor 设值,clear 后再 shift+click 不应回到旧 anchor
+    useAppStore.getState().selectConv('a', 'replace')
+    useAppStore.getState().clearSelection()
+    useAppStore.getState().selectConv('c', 'range', ['a', 'b', 'c'])
+    expect(Array.from(useAppStore.getState().selectedConvIds)).toEqual(['c'])
   })
 })

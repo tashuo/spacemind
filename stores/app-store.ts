@@ -20,17 +20,38 @@ export interface ImportSummary {
   messagesAdded: number
 }
 
+export type SelectMode = 'toggle' | 'replace' | 'range'
+
 interface State {
   loaded: boolean
   spaces: Space[]
   conversations: Conversation[]
   importing: boolean
   toasts: Toast[]
+  selectedConvIds: Set<string>
 
   load: () => Promise<void>
   createSpace: (name: string, color: PaletteKey) => Promise<string>
   renameSpace: (id: string, name: string) => Promise<void>
   removeSpace: (id: string) => Promise<void>
+
+  setEmoji: (id: string, emoji: string | undefined) => Promise<void>
+  setNote: (id: string, note: string | undefined) => Promise<void>
+  togglePin: (id: string) => Promise<void>
+  setSortIndex: (id: string, sortIndex: number) => Promise<void>
+
+  moveConversationToSpace: (
+    conversationId: string,
+    spaceId: string | null
+  ) => Promise<void>
+  moveConversationsToSpace: (
+    ids: string[],
+    spaceId: string | null
+  ) => Promise<void>
+  removeConversations: (ids: string[]) => Promise<void>
+
+  selectConv: (id: string, mode: SelectMode, visibleIds?: string[]) => void
+  clearSelection: () => void
 
   importFromZip: (buf: ArrayBuffer) => Promise<ImportSummary>
 
@@ -44,12 +65,49 @@ let toastSeq = 0
 /** Toast 自动消失时长。集中常量,便于将来调参或换成可配置 */
 const TOAST_TTL_MS = 4000
 
+// 多选锚点:'range' 模式下用来确定区间起点。
+// 放模块级而不是 state,是因为 anchor 只在交互瞬间有意义,不需要订阅其变化,
+// 也不需要进入 React 渲染依赖图;放 state 会触发不必要的 re-render。
+let anchorConvId: string | null = null
+
+/**
+ * 通用的 space 字段乐观更新 + 回滚封装。
+ * 把 setEmoji / setNote / togglePin / setSortIndex 共有的 5 步写一次:
+ *   1) 找到现存 Space  2) 用 mutator 算新值  3) 乐观写内存(并 re-sort)
+ *   4) await db.putSpace  5) 失败回滚 + 错误 toast
+ * mutator 返回 null 表示"不需要变更",静默退出(togglePin 不会用到,但保留扩展性)
+ */
+async function mutateSpace(
+  get: () => State,
+  set: (partial: Partial<State>) => void,
+  id: string,
+  mutator: (current: Space, now: number) => Space | null,
+  errorText: string
+): Promise<void> {
+  const before = get().spaces
+  const target = before.find((s) => s.id === id)
+  if (!target) return
+  const now = Date.now()
+  const next = mutator(target, now)
+  if (!next) return
+  const nextList = before.map((s) => (s.id === id ? next : s))
+  set({ spaces: spacesLib.sortedForDisplay(nextList) })
+  try {
+    await db.putSpace(next)
+  } catch (e) {
+    set({ spaces: before })
+    get().pushToast('error', errorText)
+    throw e
+  }
+}
+
 export const useAppStore = create<State>((set, get) => ({
   loaded: false,
   spaces: [],
   conversations: [],
   importing: false,
   toasts: [],
+  selectedConvIds: new Set<string>(),
 
   // load 失败不翻 loaded=true —— 保留给 UI 重试入口,不能伪装成"加载完毕但空"
   load: async () => {
@@ -114,6 +172,157 @@ export const useAppStore = create<State>((set, get) => ({
       get().pushToast('error', 'Failed to delete space')
       throw e
     }
+  },
+
+  setEmoji: async (id, emoji) => {
+    await mutateSpace(
+      get,
+      set,
+      id,
+      (current, now) => spacesLib.setEmoji(current, emoji, now),
+      'Failed to update emoji'
+    )
+  },
+
+  setNote: async (id, note) => {
+    await mutateSpace(
+      get,
+      set,
+      id,
+      (current, now) => spacesLib.setNote(current, note, now),
+      'Failed to update note'
+    )
+  },
+
+  togglePin: async (id) => {
+    await mutateSpace(
+      get,
+      set,
+      id,
+      (current, now) => spacesLib.setPinned(current, !current.pinned, now),
+      'Failed to toggle pin'
+    )
+  },
+
+  setSortIndex: async (id, sortIndex) => {
+    await mutateSpace(
+      get,
+      set,
+      id,
+      (current, now) => spacesLib.setSortIndex(current, sortIndex, now),
+      'Failed to reorder space'
+    )
+  },
+
+  moveConversationToSpace: async (conversationId, spaceId) => {
+    const before = get().conversations
+    const target = before.find((c) => c.id === conversationId)
+    if (!target) return
+    const now = Date.now()
+    let next: Conversation
+    if (spaceId === null) {
+      // exactOptionalPropertyTypes:解构丢字段,避免显式 spaceId: undefined
+      const { spaceId: _drop, ...rest } = target
+      void _drop
+      next = { ...rest, platformUpdatedAt: now }
+    } else {
+      next = { ...target, spaceId, platformUpdatedAt: now }
+    }
+    const nextList = before.map((c) => (c.id === conversationId ? next : c))
+    set({ conversations: nextList })
+    try {
+      await db.putConversation(next)
+    } catch (e) {
+      set({ conversations: before })
+      get().pushToast('error', 'Failed to move conversation')
+      throw e
+    }
+  },
+
+  moveConversationsToSpace: async (ids, spaceId) => {
+    if (ids.length === 0) return
+    const before = get().conversations
+    const idSet = new Set(ids)
+    const now = Date.now()
+    const nextList = before.map((c) => {
+      if (!idSet.has(c.id)) return c
+      if (spaceId === null) {
+        const { spaceId: _drop, ...rest } = c
+        void _drop
+        return { ...rest, platformUpdatedAt: now }
+      }
+      return { ...c, spaceId, platformUpdatedAt: now }
+    })
+    set({ conversations: nextList })
+    try {
+      await db.bulkUpdateConversationSpace(ids, spaceId, now)
+    } catch (e) {
+      set({ conversations: before })
+      get().pushToast('error', 'Failed to move conversations')
+      throw e
+    }
+  },
+
+  removeConversations: async (ids) => {
+    if (ids.length === 0) return
+    const before = get().conversations
+    const beforeSelection = get().selectedConvIds
+    const idSet = new Set(ids)
+    const nextList = before.filter((c) => !idSet.has(c.id))
+    // 选中态里若包含被删 id,同步剔除 —— 否则 UI 顶部"X selected"计数会失真
+    const nextSelection = new Set<string>()
+    for (const id of beforeSelection) {
+      if (!idSet.has(id)) nextSelection.add(id)
+    }
+    set({ conversations: nextList, selectedConvIds: nextSelection })
+    try {
+      await db.deleteConversationsCascade(ids)
+    } catch (e) {
+      set({ conversations: before, selectedConvIds: beforeSelection })
+      get().pushToast('error', 'Failed to delete conversations')
+      throw e
+    }
+  },
+
+  selectConv: (id, mode, visibleIds) => {
+    const current = get().selectedConvIds
+    if (mode === 'replace') {
+      anchorConvId = id
+      set({ selectedConvIds: new Set([id]) })
+      return
+    }
+    if (mode === 'toggle') {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      anchorConvId = id
+      set({ selectedConvIds: next })
+      return
+    }
+    // 'range':需要 anchor + visibleIds 才能算出区间;缺任意一个就退化成 replace
+    if (!anchorConvId || !visibleIds || visibleIds.length === 0) {
+      anchorConvId = id
+      set({ selectedConvIds: new Set([id]) })
+      return
+    }
+    const fromIdx = visibleIds.indexOf(anchorConvId)
+    const toIdx = visibleIds.indexOf(id)
+    if (fromIdx === -1 || toIdx === -1) {
+      // anchor 或目标 id 不在当前可见列表里(如已过滤掉)—— 同样退化
+      anchorConvId = id
+      set({ selectedConvIds: new Set([id]) })
+      return
+    }
+    const lo = Math.min(fromIdx, toIdx)
+    const hi = Math.max(fromIdx, toIdx)
+    const slice = visibleIds.slice(lo, hi + 1)
+    // 'range' 操作不更新 anchor:连续多次 shift+click 应都基于同一个起点
+    set({ selectedConvIds: new Set(slice) })
+  },
+
+  clearSelection: () => {
+    anchorConvId = null
+    set({ selectedConvIds: new Set() })
   },
 
   // 整包导入:JSZip → vendor 解析 → 用户字段保留的 upsert → bulk 写库 → 刷新内存

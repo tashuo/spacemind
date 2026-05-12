@@ -138,6 +138,63 @@ export async function deleteConversation(id: string): Promise<void> {
   await db.delete('conversations', id)
 }
 
+// 批量改写一组 conversation 的 spaceId。null 表示移出空间,
+// 在 exactOptionalPropertyTypes 下要"删字段"而不是写 spaceId: undefined。
+// 单事务保证半截失败不会留下错位的归属。
+export async function bulkUpdateConversationSpace(
+  ids: string[],
+  spaceId: string | null,
+  now: number,
+): Promise<void> {
+  if (ids.length === 0) return
+  const db = await openDb()
+  const tx = db.transaction('conversations', 'readwrite')
+  for (const id of ids) {
+    const existing = await tx.store.get(id)
+    if (!existing) continue
+    let next: Conversation
+    if (spaceId === null) {
+      // 解构丢弃 spaceId 而不是赋 undefined,避免在 IDB 里留下 "spaceId: undefined" 这类不规整字段
+      const { spaceId: _drop, ...rest } = existing
+      void _drop
+      next = { ...rest, platformUpdatedAt: now }
+    } else {
+      next = { ...existing, spaceId, platformUpdatedAt: now }
+    }
+    await tx.store.put(next)
+  }
+  await tx.done
+}
+
+// 级联删除一组 conversation 以及它们的全部 messages。
+// idb 每个事务只能对应一个 store,所以 conversations / messages 各开一笔事务。
+// 这意味着两者非原子:极端情况下 conversations 已删但 messages 残留 ——
+// 残留 messages 失去归属,UI 不会再引用,后续清理任务可以扫底,代价可接受
+export async function deleteConversationsCascade(ids: string[]): Promise<void> {
+  if (ids.length === 0) return
+  const db = await openDb()
+
+  // 先删 messages:用 by-conversationId 索引开游标扫一遍,匹配命中的 id 集合就删
+  const idSet = new Set(ids)
+  const mtx = db.transaction('messages', 'readwrite')
+  const mIndex = mtx.store.index('by-conversationId')
+  let cursor = await mIndex.openCursor()
+  while (cursor) {
+    if (idSet.has(cursor.value.conversationId)) {
+      await cursor.delete()
+    }
+    cursor = await cursor.continue()
+  }
+  await mtx.done
+
+  // 再删 conversations 本身
+  const ctx = db.transaction('conversations', 'readwrite')
+  for (const id of ids) {
+    await ctx.store.delete(id)
+  }
+  await ctx.done
+}
+
 // 批量写 conversations:用单一事务,失败整批回滚,避免半截数据污染列表视图
 export async function bulkPutConversations(
   rows: Conversation[]

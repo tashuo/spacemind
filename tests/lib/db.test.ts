@@ -17,6 +17,8 @@ import {
   bulkPutConversations,
   bulkPutMessages,
   bulkUpsertScrapedConversations,
+  bulkUpdateConversationSpace,
+  deleteConversationsCascade,
   __resetForTest,
 } from '@/lib/db'
 import type { Space, Conversation, Message } from '@/lib/schema'
@@ -349,5 +351,71 @@ describe('bulkUpsertScrapedConversations', () => {
     expect(result).toEqual({ added: 0, updated: 0 })
     const list = await allConversations()
     expect(list).toEqual([])
+  })
+})
+
+describe('bulkUpdateConversationSpace', () => {
+  it('moves multiple conversations to a specific space', async () => {
+    await putConversation(mkConversation({ id: 'c1', url: 'https://chatgpt.com/c/c1' }))
+    await putConversation(mkConversation({ id: 'c2', url: 'https://chatgpt.com/c/c2' }))
+    await putConversation(mkConversation({ id: 'c3', url: 'https://chatgpt.com/c/c3' }))
+    await bulkUpdateConversationSpace(['c1', 'c2'], 's1', 5000)
+    const c1 = await getConversation('c1')
+    const c2 = await getConversation('c2')
+    const c3 = await getConversation('c3')
+    expect(c1?.spaceId).toBe('s1')
+    expect(c2?.spaceId).toBe('s1')
+    expect(c1?.platformUpdatedAt).toBe(5000)
+    // 未被点名的 c3 不应被改动
+    expect(c3?.spaceId).toBeUndefined()
+  })
+
+  it('removes spaceId field entirely when spaceId arg is null', async () => {
+    await putConversation(
+      mkConversation({ id: 'c1', spaceId: 's1', url: 'https://chatgpt.com/c/c1' })
+    )
+    await bulkUpdateConversationSpace(['c1'], null, 6000)
+    const read = await getConversation('c1')
+    // 必须真正删字段,而不是写 spaceId: undefined —— 这样下游 schema 校验和索引扫描才一致
+    expect(read).toBeDefined()
+    expect('spaceId' in (read as object)).toBe(false)
+  })
+
+  it('skips missing ids silently (mixed batch)', async () => {
+    await putConversation(mkConversation({ id: 'c1', url: 'https://chatgpt.com/c/c1' }))
+    await bulkUpdateConversationSpace(['c1', 'ghost'], 's1', 7000)
+    expect((await getConversation('c1'))?.spaceId).toBe('s1')
+    expect(await getConversation('ghost')).toBeUndefined()
+  })
+
+  it('empty ids is a no-op', async () => {
+    await bulkUpdateConversationSpace([], 's1', 1000)
+    expect(await allConversations()).toEqual([])
+  })
+})
+
+describe('deleteConversationsCascade', () => {
+  it('deletes the conversations and all their messages, leaves others intact', async () => {
+    await putConversation(mkConversation({ id: 'c1', url: 'https://chatgpt.com/c/c1' }))
+    await putConversation(mkConversation({ id: 'c2', url: 'https://chatgpt.com/c/c2' }))
+    await putMessages([
+      mkMessage({ id: 'm1', conversationId: 'c1' }),
+      mkMessage({ id: 'm2', conversationId: 'c1' }),
+      mkMessage({ id: 'm3', conversationId: 'c2' }),
+    ])
+
+    await deleteConversationsCascade(['c1'])
+
+    expect(await getConversation('c1')).toBeUndefined()
+    expect(await getConversation('c2')).toBeDefined()
+    // c1 的 messages 应级联清空
+    expect(await messagesForConversation('c1')).toEqual([])
+    // c2 的 messages 不受影响
+    expect((await messagesForConversation('c2')).map((m) => m.id)).toEqual(['m3'])
+  })
+
+  it('empty ids is a no-op', async () => {
+    await deleteConversationsCascade([])
+    expect(await allConversations()).toEqual([])
   })
 })
