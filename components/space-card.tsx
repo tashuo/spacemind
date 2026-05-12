@@ -173,6 +173,8 @@ export function SpaceCard({ space, conversations, otherSpaces }: Props) {
 
   return (
     <div
+      // id 给命令面板的 "Show: <space>" 用,scrollIntoView 锚点。
+      id={`space-${space.id}`}
       className={`group/card relative bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700/80 transition-all duration-150 hover:border-slate-300 dark:hover:border-slate-600 ${
         dragOver ? 'ring-2 ring-purple-400 bg-purple-50/40 dark:bg-purple-900/10' : ''
       }`}
