@@ -19,6 +19,7 @@
   },
   "devDependencies": {
     "@types/chrome": "^0.1.40",
+    "@types/flexsearch": "^0.7.42",
     "@types/react": "^18.3.28",
     "@types/react-dom": "^18.3.7",
     "@vitest/ui": "^4.1.6",
@@ -31,6 +32,7 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.0",
+    "flexsearch": "^0.8.212",
     "idb": "^8.0.3",
     "jszip": "^3.10.1",
     "react": "^18.3.1",

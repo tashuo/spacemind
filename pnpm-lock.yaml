@@ -11,6 +11,9 @@ importers:
       '@tailwindcss/vite':
         specifier: ^4.3.0
         version: 4.3.0(vite@8.0.12(@types/node@25.6.2)(esbuild@0.27.7)(jiti@2.7.0))
+      flexsearch:
+        specifier: ^0.8.212
+        version: 0.8.212
       idb:
         specifier: ^8.0.3
         version: 8.0.3
@@ -36,6 +39,9 @@ importers:
       '@types/chrome':
         specifier: ^0.1.40
         version: 0.1.42
+      '@types/flexsearch':
+        specifier: ^0.7.42
+        version: 0.7.42
       '@types/react':
         specifier: ^18.3.28
         version: 18.3.28
@@ -531,6 +537,10 @@ packages:
   '@types/filewriter@0.0.33':
     resolution: {integrity: sha512-xFU8ZXTw4gd358lb2jw25nxY9QAgqn2+bKKjKOYfNCzN4DKCFetK7sPtrlpg66Ywe3vWY9FNxprZawAh9wfJ3g==}
 
+  '@types/flexsearch@0.7.42':
+    resolution: {integrity: sha512-FdKaw3dPgcCvqU9w8SGgqx8PrxFF2EKySRhEj1nc45HNe/2cBLff3pF52C67hzeUbNhq49t7XRIIibBd41vcIg==}
+    deprecated: This is a stub types definition. flexsearch provides its own type definitions, so you do not need this installed.
+
   '@types/har-format@1.2.16':
     resolution: {integrity: sha512-fluxdy7ryD3MV6h8pTfTYpy/xQzCFC7m89nOH9y94cNqJ1mDIDPut7MnRHI3F6qRmh/cT2fUjG1MLdCNb4hE9A==}
 
@@ -1009,6 +1019,9 @@ packages:
 
   flatted@3.4.2:
     resolution: {integrity: sha512-PjDse7RzhcPkIJwy5t7KPWQSZ9cAbzQXcafsetQoD7sOJRQlGikNbx7yZp2OotDnJyrDcbyRq3Ttb18iYOqkxA==}
+
+  flexsearch@0.8.212:
+    resolution: {integrity: sha512-wSyJr1GUWoOOIISRu+X2IXiOcVfg9qqBRyCPRUdLMIGJqPzMo+jMRlvE83t14v1j0dRMEaBbER/adQjp6Du2pw==}
 
   form-data-encoder@4.1.0:
     resolution: {integrity: sha512-G6NsmEW15s0Uw9XnCg+33H3ViYRyiM0hMrMhhqQOR8NFc5GhYrI+6I3u7OTw7b91J2g8rtvMBZJDbcGb2YUniw==}
@@ -2393,6 +2406,10 @@ snapshots:
 
   '@types/filewriter@0.0.33': {}
 
+  '@types/flexsearch@0.7.42':
+    dependencies:
+      flexsearch: 0.8.212
+
   '@types/har-format@1.2.16': {}
 
   '@types/minimatch@3.0.5': {}
@@ -2850,6 +2867,8 @@ snapshots:
       xml2js: 0.6.2
 
   flatted@3.4.2: {}
+
+  flexsearch@0.8.212: {}
 
   form-data-encoder@4.1.0: {}
 
