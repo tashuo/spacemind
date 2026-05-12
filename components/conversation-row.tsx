@@ -107,6 +107,16 @@ export function ConversationRow({
     <div
       role="button"
       tabIndex={0}
+      // 单条拖拽:序列化 id,父级 SpaceCard 作为 drop target 拿到后调 moveConversationToSpace
+      // Phase 4b 会扩展为多条 + 卡片级重排;现在只覆盖最低需求
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData(
+          'application/x-spacemind-conv',
+          JSON.stringify({ id: conversation.id }),
+        )
+        e.dataTransfer.effectAllowed = 'move'
+      }}
       onClick={(e) => {
         if (e.metaKey || e.ctrlKey) {
           e.preventDefault()

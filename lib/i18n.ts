@@ -68,6 +68,15 @@ const messages: Record<Lang, Record<string, string>> = {
     emptyConversationsTitle: 'No conversations yet',
     emptyConversationsSubtitle: 'Import a platform export, or move conversations here.',
 
+    // 空间卡片内部
+    cardNoConversations: 'No conversations in this space yet. Drag conversations here, or use "Move to…" from another card.',
+    dropConversationHere: 'Drop conversation to add it to this space',
+    unsorted: 'Unsorted',
+    unsortedSubtitle: 'Conversations not yet assigned to any space.',
+    cardNoConversationsUnsorted: 'No unsorted conversations.',
+    conversationsLabel: 'conversations',
+    confirmDeleteSpaceShort: 'Delete space "{name}"?',
+
     // Toast
     toastImported: 'Imported {n} from {vendor}',
     toastImportFailed: 'Import failed, please retry',
@@ -175,6 +184,15 @@ const messages: Record<Lang, Record<string, string>> = {
     emptySpacesSubtitle: '新建一个空间,或导入 ChatGPT/Claude 的导出包开始使用。',
     emptyConversationsTitle: '还没有对话',
     emptyConversationsSubtitle: '导入平台导出包,或把对话移到这里。',
+
+    // 空间卡片内部
+    cardNoConversations: '这个空间还没有对话。可以从其他卡片用「移到…」加入,或拖拽进来。',
+    dropConversationHere: '松开鼠标把对话加入这个空间',
+    unsorted: '未分类',
+    unsortedSubtitle: '尚未归入任何空间的对话。',
+    cardNoConversationsUnsorted: '没有未分类的对话。',
+    conversationsLabel: '条对话',
+    confirmDeleteSpaceShort: '删除空间「{name}」?',
 
     // Toast
     toastImported: '已从 {vendor} 导入 {n} 条',
