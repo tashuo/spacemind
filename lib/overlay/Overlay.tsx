@@ -46,7 +46,24 @@ export function Overlay() {
     })
   }, [open])
 
-  if (!open) return null
+  // 关闭状态下展示右下角浮动按钮(FAB),提高入口可发现性。
+  // 用户即使不知道 Cmd+Shift+K 也能一眼看到这个按钮。
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        title="SpaceMind — save current conversation (⌘⇧K)"
+        aria-label="Open SpaceMind"
+        className="fixed bottom-6 right-6 w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-purple-700 text-white shadow-lg shadow-purple-500/30 hover:shadow-xl hover:shadow-purple-500/40 hover:scale-105 transition-all duration-150 flex items-center justify-center cursor-pointer ring-1 ring-white/10"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+          <polygon points="12 2 2 7 12 12 22 7 12 2" />
+          <polyline points="2 17 12 22 22 17" />
+          <polyline points="2 12 12 17 22 12" />
+        </svg>
+      </button>
+    )
+  }
 
   const platform = detectPlatform(location.href)
   // content script 只会注入 chatgpt.com / claude.ai,正常不会走到 null;
@@ -126,7 +143,7 @@ export function Overlay() {
           )}
         </ul>
         <div className="px-4 py-2 text-[10px] text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800">
-          ↵ Save · Esc Close · ⌘⇧J Toggle
+          ↵ Save · Esc Close · ⌘⇧K Toggle
         </div>
       </div>
     </div>
