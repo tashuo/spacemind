@@ -137,6 +137,16 @@ export async function deleteConversation(id: string): Promise<void> {
   await db.delete('conversations', id)
 }
 
+// 批量写 conversations:用单一事务,失败整批回滚,避免半截数据污染列表视图
+export async function bulkPutConversations(
+  rows: Conversation[]
+): Promise<void> {
+  if (rows.length === 0) return
+  const db = await openDb()
+  const tx = db.transaction('conversations', 'readwrite')
+  await Promise.all([...rows.map((r) => tx.store.put(r)), tx.done])
+}
+
 // ---- Messages ----
 
 export async function putMessages(messages: Message[]): Promise<void> {
@@ -145,6 +155,14 @@ export async function putMessages(messages: Message[]): Promise<void> {
   // 单事务批写:任意一条失败整批回滚,避免半截数据污染对话视图
   const tx = db.transaction('messages', 'readwrite')
   await Promise.all([...messages.map((m) => tx.store.put(m)), tx.done])
+}
+
+// putMessages 的别名语义化:导入场景下与 bulkPutConversations 配对使用,可读性更好
+export async function bulkPutMessages(rows: Message[]): Promise<void> {
+  if (rows.length === 0) return
+  const db = await openDb()
+  const tx = db.transaction('messages', 'readwrite')
+  await Promise.all([...rows.map((r) => tx.store.put(r)), tx.done])
 }
 
 export async function messagesForConversation(

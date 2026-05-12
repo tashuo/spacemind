@@ -14,6 +14,8 @@ import {
   deleteConversation,
   putMessages,
   messagesForConversation,
+  bulkPutConversations,
+  bulkPutMessages,
   __resetForTest,
 } from '@/lib/db'
 import type { Space, Conversation, Message } from '@/lib/schema'
@@ -177,5 +179,51 @@ describe('db.messages', () => {
     ])
     const list = await messagesForConversation('c1')
     expect(list.map((m) => m.id)).toEqual(['m1', 'm2', 'm3'])
+  })
+})
+
+describe('db.bulk inserts', () => {
+  it('bulkPutConversations writes 100 rows in a single tx and all are readable', async () => {
+    // 100 行规模够触发"批量写"语义,但不会让 fake-indexeddb 跑很慢
+    const rows = Array.from({ length: 100 }, (_, i) =>
+      mkConversation({
+        id: `c-${i}`,
+        title: `Title ${i}`,
+        url: `https://chatgpt.com/c/c-${i}`,
+      })
+    )
+    await bulkPutConversations(rows)
+    const list = await allConversations()
+    expect(list).toHaveLength(100)
+    // 抽样验证某些行的字段保真,避免只校验数量但内容错乱
+    const c42 = list.find((c) => c.id === 'c-42')
+    expect(c42?.title).toBe('Title 42')
+  })
+
+  it('bulkPutConversations on empty array is a no-op (no tx, no throw)', async () => {
+    await bulkPutConversations([])
+    const list = await allConversations()
+    expect(list).toEqual([])
+  })
+
+  it('bulkPutMessages writes 100 rows in a single tx and all are readable', async () => {
+    const rows = Array.from({ length: 100 }, (_, i) =>
+      mkMessage({
+        id: `m-${i}`,
+        conversationId: 'c1',
+        content: `body ${i}`,
+        timestamp: i,
+      })
+    )
+    await bulkPutMessages(rows)
+    const list = await messagesForConversation('c1')
+    expect(list).toHaveLength(100)
+    expect(list.find((m) => m.id === 'm-99')?.content).toBe('body 99')
+  })
+
+  it('bulkPutMessages on empty array is a no-op (no tx, no throw)', async () => {
+    await bulkPutMessages([])
+    const list = await messagesForConversation('c1')
+    expect(list).toEqual([])
   })
 })
