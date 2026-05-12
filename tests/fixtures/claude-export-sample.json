@@ -1,0 +1,42 @@
+[
+  {
+    "uuid": "cv-1",
+    "name": "Tailwind dark mode setup",
+    "created_at": "2025-08-15T09:00:00Z",
+    "updated_at": "2025-08-15T09:05:00Z",
+    "chat_messages": [
+      {
+        "uuid": "msg-1",
+        "text": "How do I add dark mode in Tailwind v4?",
+        "sender": "human",
+        "created_at": "2025-08-15T09:00:10Z"
+      },
+      {
+        "uuid": "msg-2",
+        "text": "Use @custom-variant dark with a .dark class selector.",
+        "sender": "assistant",
+        "created_at": "2025-08-15T09:00:30Z"
+      }
+    ]
+  },
+  {
+    "uuid": "cv-2",
+    "name": "Recipe ideas",
+    "created_at": "2025-08-20T18:00:00Z",
+    "updated_at": "2025-08-20T18:15:00Z",
+    "chat_messages": [
+      {
+        "uuid": "msg-a",
+        "text": "Three vegetarian dinner ideas?",
+        "sender": "human",
+        "created_at": "2025-08-20T18:00:00Z"
+      },
+      {
+        "uuid": "msg-b",
+        "text": "1. Roasted vegetable pasta. 2. Lentil curry. 3. Mushroom risotto.",
+        "sender": "assistant",
+        "created_at": "2025-08-20T18:00:45Z"
+      }
+    ]
+  }
+]

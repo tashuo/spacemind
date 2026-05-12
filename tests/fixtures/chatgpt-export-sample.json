@@ -1,0 +1,88 @@
+[
+  {
+    "title": "How to center a div",
+    "create_time": 1714900000.0,
+    "update_time": 1714900500.0,
+    "conversation_id": "c-conv-1",
+    "current_node": "m-3",
+    "mapping": {
+      "m-0": { "id": "m-0", "message": null, "parent": null, "children": ["m-1"] },
+      "m-1": {
+        "id": "m-1",
+        "message": {
+          "id": "m-1",
+          "author": { "role": "user" },
+          "content": { "content_type": "text", "parts": ["How do I center a div?"] },
+          "create_time": 1714900010.0
+        },
+        "parent": "m-0",
+        "children": ["m-2"]
+      },
+      "m-2": {
+        "id": "m-2",
+        "message": {
+          "id": "m-2",
+          "author": { "role": "assistant" },
+          "content": { "content_type": "text", "parts": ["Use flexbox with justify-content and align-items."] },
+          "create_time": 1714900020.0
+        },
+        "parent": "m-1",
+        "children": ["m-3"]
+      },
+      "m-3": {
+        "id": "m-3",
+        "message": {
+          "id": "m-3",
+          "author": { "role": "user" },
+          "content": { "content_type": "text", "parts": ["Thanks!"] },
+          "create_time": 1714900030.0
+        },
+        "parent": "m-2",
+        "children": []
+      }
+    }
+  },
+  {
+    "title": "Greet in French",
+    "create_time": 1714903000.0,
+    "update_time": 1714903100.0,
+    "conversation_id": "c-conv-2",
+    "current_node": "m-b2",
+    "mapping": {
+      "m-a0": { "id": "m-a0", "message": null, "parent": null, "children": ["m-a1"] },
+      "m-a1": {
+        "id": "m-a1",
+        "message": {
+          "id": "m-a1",
+          "author": { "role": "user" },
+          "content": { "content_type": "text", "parts": ["Say hi"] },
+          "create_time": 1714903010.0
+        },
+        "parent": "m-a0",
+        "children": ["m-b1", "m-b2"]
+      },
+      "m-b1": {
+        "id": "m-b1",
+        "message": {
+          "id": "m-b1",
+          "author": { "role": "assistant" },
+          "content": { "content_type": "text", "parts": ["Hello!"] },
+          "create_time": 1714903020.0
+        },
+        "parent": "m-a1",
+        "children": []
+      },
+      "m-b2": {
+        "id": "m-b2",
+        "message": {
+          "id": "m-b2",
+          "author": { "role": "assistant" },
+          "content": { "content_type": "text", "parts": ["Bonjour!"] },
+          "create_time": 1714903030.0
+        },
+        "parent": "m-a1",
+        "children": []
+      }
+    }
+  }
+]
