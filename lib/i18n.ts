@@ -88,8 +88,9 @@ const messages: Record<Lang, Record<string, string>> = {
     toastSpaceDeleted: 'Deleted space "{name}"',
 
     // 搜索
-    searchPlaceholder: 'Search conversations…',
+    searchPlaceholder: 'Search across all conversations…',
     searchResultsSummary: '{n} results in {s} spaces',
+    searchResultsSummaryOne: '{n} result in {s} space',
     clearSearch: 'Clear',
     noSearchResults: 'No matches',
 
@@ -205,10 +206,11 @@ const messages: Record<Lang, Record<string, string>> = {
     toastSpaceDeleted: '已删除空间「{name}」',
 
     // 搜索
-    searchPlaceholder: '搜索对话…',
-    searchResultsSummary: '{n} 条结果,跨 {s} 个空间',
+    searchPlaceholder: '搜索所有对话…',
+    searchResultsSummary: '在 {s} 个空间中找到 {n} 个结果',
+    searchResultsSummaryOne: '在 {s} 个空间中找到 {n} 个结果',
     clearSearch: '清除',
-    noSearchResults: '没有匹配结果',
+    noSearchResults: '没有匹配',
 
     // 命令面板
     commandPalette: '命令面板',

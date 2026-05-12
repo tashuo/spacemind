@@ -29,6 +29,10 @@ interface State {
   importing: boolean
   toasts: Toast[]
   selectedConvIds: Set<string>
+  // 跨空间搜索关键词。空串视为"未在搜索",此时 UI 走正常空间列表。
+  // 真正的输入防抖在 SearchBar 组件里;这里始终拿到的是已防抖后的值,
+  // 这样订阅者(主视图、命中数提示)不用在每次按键时重渲。
+  searchQuery: string
 
   load: () => Promise<void>
   createSpace: (name: string, color: PaletteKey) => Promise<string>
@@ -52,6 +56,8 @@ interface State {
 
   selectConv: (id: string, mode: SelectMode, visibleIds?: string[]) => void
   clearSelection: () => void
+
+  setSearchQuery: (q: string) => void
 
   importFromZip: (buf: ArrayBuffer) => Promise<ImportSummary>
 
@@ -108,6 +114,7 @@ export const useAppStore = create<State>((set, get) => ({
   importing: false,
   toasts: [],
   selectedConvIds: new Set<string>(),
+  searchQuery: '',
 
   // load 失败不翻 loaded=true —— 保留给 UI 重试入口,不能伪装成"加载完毕但空"
   load: async () => {
@@ -324,6 +331,9 @@ export const useAppStore = create<State>((set, get) => ({
     anchorConvId = null
     set({ selectedConvIds: new Set() })
   },
+
+  // 纯内存切换;持久化不需要 —— 搜索关键词是会话期状态,刷新页面应该回到空白
+  setSearchQuery: (q) => set({ searchQuery: q }),
 
   // 整包导入:JSZip → vendor 解析 → 用户字段保留的 upsert → bulk 写库 → 刷新内存
   // 失败时 importing 必须重置,否则 UI 进度条永远转

@@ -5,6 +5,8 @@ import { useAppStore } from '@/stores/app-store'
 import { OnboardingDialog } from '@/components/onboarding-dialog'
 import { ImportProgress } from '@/components/import-progress'
 import { SpaceList } from '@/components/space-list'
+import { SearchBar } from '@/components/search-bar'
+import { SearchResults } from '@/components/search-results'
 import { ToastStack } from '@/components/toast-stack'
 import { Plus } from '@/components/icons'
 
@@ -12,6 +14,7 @@ export default function App() {
   useTheme()
   const { t } = useT()
   const { loaded, spaces, conversations, importing, load, importFromZip, createSpace } = useAppStore()
+  const searchQuery = useAppStore((s) => s.searchQuery)
   useEffect(() => {
     void load()
   }, [load])
@@ -22,6 +25,8 @@ export default function App() {
 
   // 完全空状态(没空间也没会话)= 首次启动 / Replace 导入后的入口场景,直接走 onboarding
   const isEmpty = spaces.length === 0 && conversations.length === 0
+  // 仅当 trim 后非空才算搜索态 —— 用户敲空格不该把空间列表替换成空结果页
+  const isSearching = searchQuery.trim().length > 0
 
   return (
     <main className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
@@ -50,8 +55,20 @@ export default function App() {
           )}
         </header>
 
+        {!isEmpty && (
+          <div className="mb-4">
+            <SearchBar />
+          </div>
+        )}
+
         {isEmpty ? (
           <OnboardingDialog />
+        ) : isSearching ? (
+          <SearchResults
+            query={searchQuery}
+            spaces={spaces}
+            conversations={conversations}
+          />
         ) : (
           <SpaceList
             spaces={spaces}
