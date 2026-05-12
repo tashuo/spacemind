@@ -1,0 +1,14 @@
+<!--
+  Hand-crafted minimal representation of ChatGPT's sidebar conversation list.
+  Real markup is far busier (Tailwind utility soup, draggable wrappers, icons),
+  but the parser only needs <a href="/c/..."> anchors with the conversation title
+  as textContent. Extra wrappers are intentionally omitted to keep the fixture
+  resilient to OpenAI's frequent UI rewrites.
+-->
+<aside aria-label="Chat history">
+  <nav>
+    <a href="/c/conv-1" class="group flex items-center px-2 py-1">Centering a div</a>
+    <a href="/c/conv-2" class="group flex items-center px-2 py-1">Migrating to Vite</a>
+    <a href="/c/conv-3" data-testid="conv-link">Random title</a>
+  </nav>
+</aside>
