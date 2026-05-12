@@ -16,9 +16,11 @@ import {
   messagesForConversation,
   bulkPutConversations,
   bulkPutMessages,
+  bulkUpsertScrapedConversations,
   __resetForTest,
 } from '@/lib/db'
 import type { Space, Conversation, Message } from '@/lib/schema'
+import type { ScrapedConversation } from '@/lib/runtime-messages'
 
 // 每个 case 前清库 + 重置 dbPromise 缓存,避免 idb 拿着旧的 db handle 写到已删除的库。
 // 先 close 老连接再 deleteDatabase,否则 fake-indexeddb 会卡在 versionchange。
@@ -224,6 +226,128 @@ describe('db.bulk inserts', () => {
   it('bulkPutMessages on empty array is a no-op (no tx, no throw)', async () => {
     await bulkPutMessages([])
     const list = await messagesForConversation('c1')
+    expect(list).toEqual([])
+  })
+})
+
+describe('bulkUpsertScrapedConversations', () => {
+  const mkScraped = (overrides: Partial<ScrapedConversation> = {}): ScrapedConversation => ({
+    id: 'sc1',
+    url: 'https://chatgpt.com/c/sc1',
+    title: 'Scraped Title',
+    ...overrides,
+  })
+
+  it('bulk inserts 5 fresh scraped → all added=5, updated=0', async () => {
+    const scraped: ScrapedConversation[] = Array.from({ length: 5 }, (_, i) => ({
+      id: `s-${i}`,
+      url: `https://chatgpt.com/c/s-${i}`,
+      title: `Scraped ${i}`,
+    }))
+    const result = await bulkUpsertScrapedConversations('chatgpt', scraped, 1000)
+    expect(result).toEqual({ added: 5, updated: 0 })
+    const list = await allConversations()
+    expect(list).toHaveLength(5)
+    // 抽样:capturedAt 应被设为 now,platformUpdatedAt 同步
+    const s0 = list.find((c) => c.id === 's-0')
+    expect(s0?.capturedAt).toBe(1000)
+    expect(s0?.platformUpdatedAt).toBe(1000)
+    expect(s0?.platform).toBe('chatgpt')
+    expect(s0?.tags).toEqual([])
+    expect(s0?.starred).toBe(false)
+  })
+
+  it('re-run same 5 + 2 new → added=2, updated=5', async () => {
+    const first: ScrapedConversation[] = Array.from({ length: 5 }, (_, i) => ({
+      id: `s-${i}`,
+      url: `https://chatgpt.com/c/s-${i}`,
+      title: `Scraped ${i}`,
+    }))
+    await bulkUpsertScrapedConversations('chatgpt', first, 1000)
+    const second: ScrapedConversation[] = [
+      ...first,
+      { id: 's-5', url: 'https://chatgpt.com/c/s-5', title: 'New 5' },
+      { id: 's-6', url: 'https://chatgpt.com/c/s-6', title: 'New 6' },
+    ]
+    const result = await bulkUpsertScrapedConversations('chatgpt', second, 2000)
+    expect(result).toEqual({ added: 2, updated: 5 })
+    const list = await allConversations()
+    expect(list).toHaveLength(7)
+  })
+
+  it('preserves user-set spaceId on existing rows', async () => {
+    // 先正常插一条,然后用户手动塞进 space,再次 scrape 不应抹掉 spaceId
+    await putConversation(
+      mkConversation({
+        id: 'sc1',
+        spaceId: 'user-space-1',
+        url: 'https://chatgpt.com/c/sc1',
+        title: 'Original',
+        capturedAt: 500,
+      })
+    )
+    const result = await bulkUpsertScrapedConversations(
+      'chatgpt',
+      [mkScraped({ id: 'sc1', title: 'Renamed by user' })],
+      2000
+    )
+    expect(result).toEqual({ added: 0, updated: 1 })
+    const read = await getConversation('sc1')
+    expect(read?.spaceId).toBe('user-space-1')
+    expect(read?.title).toBe('Renamed by user')
+    expect(read?.platformUpdatedAt).toBe(2000)
+    // capturedAt 是首次抓取时间,不应被覆盖
+    expect(read?.capturedAt).toBe(500)
+  })
+
+  it('preserves user-set tags, starred, note on existing rows', async () => {
+    await putConversation(
+      mkConversation({
+        id: 'sc2',
+        url: 'https://chatgpt.com/c/sc2',
+        title: 'Old',
+        tags: ['work', 'urgent'],
+        starred: true,
+        note: 'remember this one',
+        capturedAt: 100,
+      })
+    )
+    await bulkUpsertScrapedConversations(
+      'chatgpt',
+      [mkScraped({ id: 'sc2', title: 'New title from sidebar' })],
+      3000
+    )
+    const read = await getConversation('sc2')
+    expect(read?.tags).toEqual(['work', 'urgent'])
+    expect(read?.starred).toBe(true)
+    expect(read?.note).toBe('remember this one')
+    expect(read?.title).toBe('New title from sidebar')
+    expect(read?.capturedAt).toBe(100)
+  })
+
+  it('keeps existing title when scraped title is empty string', async () => {
+    // 防御性:sidebar 偶尔渲染空 textContent,不应把已有标题清空
+    await putConversation(
+      mkConversation({
+        id: 'sc3',
+        url: 'https://chatgpt.com/c/sc3',
+        title: 'Good Title',
+      })
+    )
+    await bulkUpsertScrapedConversations(
+      'chatgpt',
+      [{ id: 'sc3', url: 'https://chatgpt.com/c/sc3', title: '' }],
+      4000
+    )
+    const read = await getConversation('sc3')
+    expect(read?.title).toBe('Good Title')
+    expect(read?.platformUpdatedAt).toBe(4000)
+  })
+
+  it('empty array returns {added:0, updated:0} without opening a tx', async () => {
+    const result = await bulkUpsertScrapedConversations('chatgpt', [], 1000)
+    expect(result).toEqual({ added: 0, updated: 0 })
+    const list = await allConversations()
     expect(list).toEqual([])
   })
 })

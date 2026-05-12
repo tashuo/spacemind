@@ -1,5 +1,6 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import type { Space, Conversation, Message, Platform } from './schema'
+import type { ScrapedConversation } from './runtime-messages'
 
 // IndexedDB 名/版本集中放这里 —— 升级 schema 必须同步改 DB_VERSION 并补 upgrade 分支
 const DB_NAME = 'spacemind'
@@ -145,6 +146,51 @@ export async function bulkPutConversations(
   const db = await openDb()
   const tx = db.transaction('conversations', 'readwrite')
   await Promise.all([...rows.map((r) => tx.store.put(r)), tx.done])
+}
+
+// sidebar scraper 调用入口:对每条 scraped 条目,已存在则保留用户字段
+// (spaceId / tags / starred / note / capturedAt),仅刷新平台层 url / title / platformUpdatedAt;
+// 不存在则用 now 作为 capturedAt + platformUpdatedAt 新建。整批一个事务,失败回滚。
+export async function bulkUpsertScrapedConversations(
+  platform: Platform,
+  scraped: ScrapedConversation[],
+  now: number,
+): Promise<{ added: number; updated: number }> {
+  if (scraped.length === 0) return { added: 0, updated: 0 }
+  const db = await openDb()
+  const tx = db.transaction('conversations', 'readwrite')
+  let added = 0
+  let updated = 0
+  for (const s of scraped) {
+    const existing = await tx.store.get(s.id)
+    if (existing) {
+      // exactOptionalPropertyTypes 下不能用 `field: existing.field` 把 undefined 显式赋回去,
+      // 全 spread 既保留用户字段,又只覆盖明确要刷新的几列
+      const next: Conversation = {
+        ...existing,
+        title: s.title || existing.title,
+        url: s.url,
+        platformUpdatedAt: now,
+      }
+      await tx.store.put(next)
+      updated++
+    } else {
+      const fresh: Conversation = {
+        id: s.id,
+        platform,
+        url: s.url,
+        title: s.title,
+        tags: [],
+        starred: false,
+        capturedAt: now,
+        platformUpdatedAt: now,
+      }
+      await tx.store.put(fresh)
+      added++
+    }
+  }
+  await tx.done
+  return { added, updated }
 }
 
 // ---- Messages ----
