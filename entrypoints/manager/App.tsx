@@ -5,6 +5,7 @@ import { useAppStore } from '@/stores/app-store'
 import { OnboardingDialog } from '@/components/onboarding-dialog'
 import { ImportProgress } from '@/components/import-progress'
 import { SpaceList } from '@/components/space-list'
+import { ToastStack } from '@/components/toast-stack'
 import { Plus } from '@/components/icons'
 
 export default function App() {
@@ -62,6 +63,7 @@ export default function App() {
 
         {importing && <ImportProgress />}
       </div>
+      <ToastStack />
     </main>
   )
 }

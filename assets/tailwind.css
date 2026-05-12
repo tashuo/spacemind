@@ -7,3 +7,10 @@
   --color-brand-600: #9333ea;
   --color-brand-700: #7e22ce;
 }
+
+/* Toast 入场动画 —— Tailwind 没有现成的轻量上滑+淡入,自定义 200ms 足够柔和又不拖沓 */
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.toast-in { animation: toast-in 200ms ease-out; }
