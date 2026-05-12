@@ -274,3 +274,9 @@ export async function messagesForConversation(
   const db = await openDb()
   return db.getAllFromIndex('messages', 'by-conversationId', conversationId)
 }
+
+// 一次性导出整库 messages —— 仅给 JSON 备份/导出用,UI 列表不应调用(可能很大)
+export async function allMessages(): Promise<Message[]> {
+  const db = await openDb()
+  return db.getAll('messages')
+}

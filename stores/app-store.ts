@@ -4,6 +4,7 @@ import type { Conversation, PaletteKey, Space } from '@/lib/schema'
 import * as db from '@/lib/db'
 import * as spacesLib from '@/lib/spaces'
 import * as zipImport from '@/lib/zip-import'
+import * as exportImport from '@/lib/export-import'
 
 export type ToastKind = 'info' | 'error'
 
@@ -15,6 +16,14 @@ export interface Toast {
 
 export interface ImportSummary {
   vendor: zipImport.Vendor
+  conversationsAdded: number
+  conversationsUpdated: number
+  messagesAdded: number
+}
+
+export interface JsonImportSummary {
+  spacesAdded: number
+  spacesUpdated: number
   conversationsAdded: number
   conversationsUpdated: number
   messagesAdded: number
@@ -60,6 +69,10 @@ interface State {
   setSearchQuery: (q: string) => void
 
   importFromZip: (buf: ArrayBuffer) => Promise<ImportSummary>
+
+  // SpaceMind 自家的 JSON 备份/恢复 —— 与 importFromZip 互不影响
+  exportToJson: () => Promise<void>
+  importFromJson: (file: File) => Promise<JsonImportSummary>
 
   pushToast: (kind: ToastKind, text: string) => void
   dismissToast: (id: number) => void
@@ -388,6 +401,101 @@ export const useAppStore = create<State>((set, get) => ({
       const msg = e instanceof Error ? e.message : 'Failed to import'
       get().pushToast('error', msg)
       throw e
+    }
+  },
+
+  // 把当前内存 + IDB 中的全部 messages 序列化成 JSON 文件,触发浏览器下载。
+  // 失败时推 error toast 并抛,UI 可以决定是否提示用户重试。
+  exportToJson: async () => {
+    try {
+      // spaces / conversations 直接从内存读(load 后是权威副本);messages 量大,只走 IDB
+      const { spaces, conversations } = get()
+      const messages = await db.allMessages()
+      const now = Date.now()
+      const content = exportImport.serializeForExport(
+        { spaces, conversations, messages },
+        now,
+      )
+      exportImport.downloadJson(exportImport.exportFilename(now), content)
+      get().pushToast('info', 'Backup downloaded')
+    } catch (e) {
+      get().pushToast('error', 'Export failed')
+      throw e
+    }
+  },
+
+  // 解析 → 三类对象 upsert(保留用户元数据)→ 重读内存。
+  // messages 默认覆盖:同 id 视为同一条 message 的最新副本,SpaceMind 不在本地编辑 message 内容
+  importFromJson: async (file) => {
+    let text: string
+    try {
+      text = await file.text()
+    } catch (e) {
+      get().pushToast('error', 'Failed to read file')
+      throw e
+    }
+    const parsed = exportImport.parseImport(text)
+    if (!parsed.ok) {
+      const reason = parsed.reason === 'invalid-json' ? 'Invalid JSON file' : 'Unrecognized backup format'
+      get().pushToast('error', reason)
+      throw new Error(reason)
+    }
+    const { spaces: incomingSpaces, conversations: incomingConvs, messages: incomingMessages } = parsed.file
+
+    let spacesAdded = 0
+    let spacesUpdated = 0
+    const mergedSpaces: Space[] = []
+    for (const incoming of incomingSpaces) {
+      const existing = await db.getSpace(incoming.id)
+      mergedSpaces.push(exportImport.mergeSpace(existing, incoming))
+      if (existing) spacesUpdated++
+      else spacesAdded++
+    }
+
+    let conversationsAdded = 0
+    let conversationsUpdated = 0
+    const mergedConvs: Conversation[] = []
+    for (const incoming of incomingConvs) {
+      const existing = await db.getConversation(incoming.id)
+      mergedConvs.push(exportImport.mergeConversation(existing, incoming))
+      if (existing) conversationsUpdated++
+      else conversationsAdded++
+    }
+
+    try {
+      // Space 没有批量写接口,串行 putSpace —— 数量级一般 < 100,无需优化
+      for (const s of mergedSpaces) await db.putSpace(s)
+      await db.bulkPutConversations(mergedConvs)
+      await db.bulkPutMessages(incomingMessages)
+    } catch (e) {
+      get().pushToast('error', 'Failed to write imported data')
+      throw e
+    }
+
+    // 重新拉一遍,避免本地内存与库不一致(尤其 spaces 的 by-updatedAt 顺序)
+    const [spaces, conversations] = await Promise.all([
+      db.allSpaces(),
+      db.allConversations(),
+    ])
+    set({
+      spaces: spacesLib.sortedForDisplay(spaces),
+      conversations,
+    })
+
+    const total =
+      spacesAdded +
+      spacesUpdated +
+      conversationsAdded +
+      conversationsUpdated +
+      incomingMessages.length
+    get().pushToast('info', `Imported ${total} items`)
+
+    return {
+      spacesAdded,
+      spacesUpdated,
+      conversationsAdded,
+      conversationsUpdated,
+      messagesAdded: incomingMessages.length,
     }
   },
 

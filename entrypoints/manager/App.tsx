@@ -9,10 +9,12 @@ import { SearchBar } from '@/components/search-bar'
 import { SearchResults } from '@/components/search-results'
 import { ToastStack } from '@/components/toast-stack'
 import { CommandPalette } from '@/components/command-palette'
+import { HelpDialog } from '@/components/help-dialog'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Plus } from '@/components/icons'
 import { THEME_PREFS } from '@/lib/theme'
 import type { Command } from '@/lib/commands'
+import { pickJsonFile } from '@/lib/export-import'
 
 // 隐藏 ZIP 文件选择器的固定 id —— 命令面板里的 "Import ZIP" 命令通过这个
 // id 直接 click() 它,这样不必把 file input 拆出来或开放 store 级别的引用。
@@ -23,7 +25,7 @@ export default function App() {
   // 也把当前 pref / setter 暴露给命令面板循环。一次调用,两件事。
   const { pref: themePref, setPref: setThemePref } = useTheme()
   const { t } = useT()
-  const { loaded, spaces, conversations, importing, load, importFromZip, createSpace } = useAppStore()
+  const { loaded, spaces, conversations, importing, load, importFromZip, createSpace, exportToJson, importFromJson } = useAppStore()
   const searchQuery = useAppStore((s) => s.searchQuery)
 
   useEffect(() => {
@@ -32,6 +34,7 @@ export default function App() {
   // Unsorted 默认展开:首次导入用户多半还没分类,展开能让对话立即可见
   const [unsortedExpanded, setUnsortedExpanded] = useState(true)
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [helpDialogOpen, setHelpDialogOpen] = useState(false)
 
   // 全局 ⌘K / Ctrl+K —— 拦在 document 层面,任何聚焦状态都能开。
   // 注意:如果焦点在 contenteditable 或 input,我们仍然要拦 —— 这是命令面板的惯例
@@ -81,13 +84,38 @@ export default function App() {
     })
 
     list.push({
+      id: 'export-json',
+      group: 'action',
+      label: t('cmdExportJson'),
+      perform: () => {
+        void exportToJson()
+      },
+    })
+
+    list.push({
+      id: 'import-json',
+      group: 'action',
+      label: t('cmdImportJson'),
+      perform: () => {
+        // pickJsonFile 必须在命令 perform 的同步链上调用 —— 浏览器才会把它
+        // 视为用户激活,否则 file input click 会被静默拒。
+        void (async () => {
+          const file = await pickJsonFile()
+          if (!file) return
+          try {
+            await importFromJson(file)
+          } catch {
+            // toast already pushed by store
+          }
+        })()
+      },
+    })
+
+    list.push({
       id: 'help',
       group: 'action',
       label: t('cmdOpenHelp'),
-      // Help dialog 留给 Task 8 接;先把命令占位,免得用户在 ⌘K 里看不到。
-      perform: () => {
-        /* wired in Task 8 */
-      },
+      perform: () => setHelpDialogOpen(true),
     })
 
     // —— Spaces ——
@@ -105,7 +133,7 @@ export default function App() {
     }
 
     return list
-  }, [themePref, setThemePref, spaces, t])
+  }, [themePref, setThemePref, spaces, t, exportToJson, importFromJson])
 
   if (!loaded) return null
 
@@ -175,6 +203,7 @@ export default function App() {
         onClose={() => setPaletteOpen(false)}
         commands={commands}
       />
+      {helpDialogOpen && <HelpDialog onClose={() => setHelpDialogOpen(false)} />}
     </main>
   )
 }

@@ -86,6 +86,11 @@ const messages: Record<Lang, Record<string, string>> = {
     toastRemoved: 'Removed {n} conversations',
     toastSpaceCreated: 'Created space "{name}"',
     toastSpaceDeleted: 'Deleted space "{name}"',
+    toastExported: 'Backup downloaded',
+    toastExportFailed: 'Export failed',
+    toastImportedSummary: 'Imported {n} items',
+    toastImportJsonFailedJson: 'Invalid JSON file',
+    toastImportJsonFailedShape: 'Unrecognized backup format',
 
     // 搜索
     searchPlaceholder: 'Search across all conversations…',
@@ -113,6 +118,37 @@ const messages: Record<Lang, Record<string, string>> = {
     helpSectionImport: 'Importing',
     helpSectionOrganize: 'Organizing',
     helpSectionShortcuts: 'Shortcuts',
+    welcomeTitle: 'SpaceMind — Welcome',
+    helpIntro:
+      'SpaceMind keeps your ChatGPT and Claude conversations local, searchable, and organized into project spaces. Everything below also lives behind ⌘K.',
+    helpQuickStartHeading: 'Quick start',
+    helpQuickStart1:
+      'Export your ChatGPT or Claude history (Settings → Privacy → Export data) and wait for the email with a ZIP.',
+    helpQuickStart2: 'Drop the ZIP onto the "Import ZIP" button at the top right of the manager.',
+    helpQuickStart3:
+      'Organize conversations into spaces — drag them, or ⌘/Ctrl+click to select several and "Move to…".',
+    helpQuickStart4:
+      'Press Cmd+Shift+J on any chatgpt.com or claude.ai page to save the current conversation into a space.',
+    helpQuickStart5: '⌘K opens the command palette — every action is reachable from there.',
+    helpConceptsHeading: 'Core concepts',
+    helpConceptSpaceTerm: 'Space',
+    helpConceptSpaceDesc:
+      'A named bucket for related conversations — e.g. "Thesis", "Side project". Spaces are just folders; conversations stay linkable back to their original URL.',
+    helpConceptConversationTerm: 'Conversation',
+    helpConceptConversationDesc:
+      'A single ChatGPT or Claude thread. SpaceMind stores its title, preview, and messages locally so you can search across everything.',
+    helpConceptUnsortedTerm: 'Unsorted',
+    helpConceptUnsortedDesc:
+      'The default bucket newly imported conversations land in. Triage from here into the spaces that fit.',
+    helpShortcutsHeading: 'Keyboard shortcuts',
+    helpKbdPalette: '⌘K — open the command palette',
+    helpKbdOverlay: 'Cmd+Shift+J — save the current page on chatgpt.com / claude.ai',
+    helpKbdToggleSelect: '⌘/Ctrl+click on a conversation — toggle select',
+    helpKbdRangeSelect: 'Shift+click on a conversation — range select',
+    helpKbdEscape: 'Esc — close dialogs / clear search',
+    helpPrivacyHeading: 'Privacy',
+    helpPrivacy:
+      'Everything stays in your browser. No telemetry, no remote sync, no account. SpaceMind is MIT open source — back up regularly via "Export JSON".',
 
     // 主题 / 语言
     theme: 'Theme',
@@ -204,6 +240,11 @@ const messages: Record<Lang, Record<string, string>> = {
     toastRemoved: '已删除 {n} 条对话',
     toastSpaceCreated: '已创建空间「{name}」',
     toastSpaceDeleted: '已删除空间「{name}」',
+    toastExported: '备份已下载',
+    toastExportFailed: '导出失败',
+    toastImportedSummary: '导入了 {n} 项',
+    toastImportJsonFailedJson: 'JSON 文件无效',
+    toastImportJsonFailedShape: '不是 SpaceMind 备份格式',
 
     // 搜索
     searchPlaceholder: '搜索所有对话…',
@@ -231,6 +272,30 @@ const messages: Record<Lang, Record<string, string>> = {
     helpSectionImport: '导入',
     helpSectionOrganize: '整理',
     helpSectionShortcuts: '快捷键',
+    welcomeTitle: 'SpaceMind — 欢迎',
+    helpIntro:
+      'SpaceMind 把你的 ChatGPT 和 Claude 对话保存在本地,可搜索、可分类。下面这些功能也都可以通过 ⌘K 命令面板触达。',
+    helpQuickStartHeading: '5 步上手',
+    helpQuickStart1: '在 ChatGPT / Claude 设置中导出对话(Settings → Privacy → Export data),等待邮件中的 ZIP。',
+    helpQuickStart2: '把 ZIP 拖到管理页右上角的「Import ZIP」按钮上。',
+    helpQuickStart3: '把对话归到空间 —— 直接拖动,或用 ⌘/Ctrl+点击 选多条后「Move to…」。',
+    helpQuickStart4: '在 chatgpt.com 或 claude.ai 页面按 Cmd+Shift+J,把当前对话保存到某个空间。',
+    helpQuickStart5: '⌘K 打开命令面板 —— 所有操作都可以从这里搜出来。',
+    helpConceptsHeading: '核心概念',
+    helpConceptSpaceTerm: '空间(Space)',
+    helpConceptSpaceDesc: '一组同主题对话的命名集合,如「论文」「副业」。空间只是一层归类,原对话的 URL 仍然能回到平台打开。',
+    helpConceptConversationTerm: '对话(Conversation)',
+    helpConceptConversationDesc: '一条 ChatGPT 或 Claude 对话。SpaceMind 在本地保存标题、预览和消息,以便跨空间搜索。',
+    helpConceptUnsortedTerm: '未分类(Unsorted)',
+    helpConceptUnsortedDesc: '新导入的对话默认落入这里。在这里挑选归到合适的空间。',
+    helpShortcutsHeading: '快捷键',
+    helpKbdPalette: '⌘K —— 打开命令面板',
+    helpKbdOverlay: 'Cmd+Shift+J —— 在 chatgpt.com / claude.ai 上保存当前对话',
+    helpKbdToggleSelect: '⌘/Ctrl+点击对话 —— 切换选中',
+    helpKbdRangeSelect: 'Shift+点击对话 —— 选区间',
+    helpKbdEscape: 'Esc —— 关闭弹窗 / 清空搜索',
+    helpPrivacyHeading: '隐私',
+    helpPrivacy: '所有数据都在你的浏览器里。无遥测、无远程同步、无账号。SpaceMind 是 MIT 开源 —— 建议定期通过「导出 JSON」备份。',
 
     // 主题 / 语言
     theme: '主题',
