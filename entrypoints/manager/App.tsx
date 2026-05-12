@@ -16,6 +16,7 @@ export default function App() {
 
   // 完全空状态(没空间也没会话)= 首次启动 / Replace 导入后的入口场景,直接走 onboarding
   const isEmpty = spaces.length === 0 && conversations.length === 0
+  const spaceById = new Map(spaces.map((s) => [s.id, s]))
 
   return (
     <main className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
@@ -61,15 +62,21 @@ export default function App() {
               </p>
             ) : (
               <ul className="mt-2 space-y-1">
-                {conversations.slice(0, 20).map((c) => (
-                  <li
-                    key={c.id}
-                    className="px-3 py-2 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm"
-                  >
-                    <span className="inline-block w-14 text-xs text-slate-500">{c.platform}</span>
-                    {c.title}
-                  </li>
-                ))}
+                {conversations.slice(0, 20).map((c) => {
+                  const sp = c.spaceId ? spaceById.get(c.spaceId) : undefined
+                  return (
+                    <li
+                      key={c.id}
+                      className="px-3 py-2 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm"
+                    >
+                      <span className="inline-block w-14 text-xs text-slate-500">{c.platform}</span>
+                      {c.title}
+                      {sp && (
+                        <span className="ml-2 text-xs text-slate-500">(in: {sp.emoji} {sp.name})</span>
+                      )}
+                    </li>
+                  )
+                })}
                 {conversations.length > 20 && (
                   <li className="text-xs text-slate-500 px-3">
                     …and {conversations.length - 20} more
