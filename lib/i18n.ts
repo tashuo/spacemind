@@ -50,8 +50,11 @@ const messages: Record<Lang, Record<string, string>> = {
     openInNewTab: 'Open in new tab',
     moveToSpace: 'Move to space',
     moveTo: 'Move to…',
+    moveToUnsorted: 'Unsorted',
     removeConversation: 'Remove',
     confirmRemoveConversations: 'Remove {n} conversations?',
+    platformChatgpt: 'ChatGPT',
+    platformClaude: 'Claude',
 
     // 多选 / 批量
     selectionCount: '{n} selected',
@@ -155,8 +158,11 @@ const messages: Record<Lang, Record<string, string>> = {
     openInNewTab: '在新标签页打开',
     moveToSpace: '移动到空间',
     moveTo: '移到…',
+    moveToUnsorted: '未分类',
     removeConversation: '删除',
     confirmRemoveConversations: '删除 {n} 条对话?',
+    platformChatgpt: 'ChatGPT',
+    platformClaude: 'Claude',
 
     // 多选 / 批量
     selectionCount: '已选 {n} 条',
