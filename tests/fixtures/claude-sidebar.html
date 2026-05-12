@@ -1,0 +1,14 @@
+<!--
+  Hand-crafted minimal representation of Claude.ai's sidebar conversation list.
+  Real markup is busier (Tailwind utility soup, draggable wrappers, icons),
+  but the parser only needs <a href="/chat/<uuid>"> anchors with the conversation
+  title as textContent. Extra wrappers are intentionally omitted to keep the
+  fixture resilient to Anthropic's UI rewrites.
+-->
+<aside aria-label="Chat history">
+  <nav>
+    <a href="/chat/0a1b2c3d-4567-89ab-cdef-0123456789ab" class="group flex items-center px-2 py-1">Tailwind dark mode</a>
+    <a href="/chat/abcd1234-5678-90ef-1234-567890abcdef" class="group flex items-center px-2 py-1">Vegan dinner ideas</a>
+    <a href="/chat/deadbeef-cafe-babe-feed-1234567890ab" data-testid="conv-link">SQL CTE deep dive</a>
+  </nav>
+</aside>
