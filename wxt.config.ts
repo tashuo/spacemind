@@ -15,9 +15,11 @@ export default defineConfig({
     },
     commands: {
       'open-overlay': {
+        // Cmd+Shift+K 在 Mac Chrome 默认无绑定;Cmd+Shift+J 是下载页面冲突。
+        // 用户可通过 chrome://extensions/shortcuts 自行改键。
         suggested_key: {
-          default: 'Ctrl+Shift+J',
-          mac: 'Command+Shift+J',
+          default: 'Ctrl+Shift+K',
+          mac: 'Command+Shift+K',
         },
         description: 'Toggle SpaceMind overlay on supported AI sites',
       },
