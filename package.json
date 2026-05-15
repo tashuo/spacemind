@@ -1,8 +1,8 @@
 {
   "name": "spacemind",
-  "description": "Cross-platform AI conversation manager with project spaces. Local-first, MIT.",
+  "description": "Organize ChatGPT & Claude conversations into project spaces. Local-first, no account, open source.",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "license": "MIT",
   "type": "module",
   "scripts": {

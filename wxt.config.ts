@@ -6,8 +6,9 @@ export default defineConfig({
   vite: () => ({ plugins: [tailwindcss()] }),
   manifest: {
     name: 'SpaceMind',
-    description: 'Cross-platform AI conversation manager with project spaces. Local-first, MIT.',
-    version: '0.1.0',
+    description: 'Organize ChatGPT & Claude conversations into project spaces. Local-first, no account, open source.',
+    version: '1.0.0',
+    homepage_url: 'https://github.com/tashuo/spacemind',
     permissions: ['storage'],
     host_permissions: ['https://chatgpt.com/*', 'https://claude.ai/*'],
     action: {
