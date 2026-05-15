@@ -124,6 +124,20 @@ export function Overlay() {
               Saved to <strong>{savedTo}</strong>
             </div>
           </div>
+        ) : !conv ? (
+          // 无法定位对话(新对话页 / 项目页 / 站点首页):明确告诉用户
+          <div className="px-6 py-10 text-center">
+            <div className="text-3xl mb-3">💬</div>
+            <div className="text-sm font-medium text-slate-800 dark:text-slate-200 mb-1">
+              No conversation here
+            </div>
+            <div className="text-xs text-slate-500 dark:text-slate-400 px-4">
+              Open a specific conversation page first, then press <kbd className="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono text-[10px]">⌘⇧K</kbd> to save it.
+            </div>
+            <div className="mt-3 text-[10px] text-slate-400 dark:text-slate-500 font-mono break-all">
+              {location.pathname}
+            </div>
+          </div>
         ) : (
         <>
         <div className="px-4 pt-3 pb-2 border-b border-slate-100 dark:border-slate-800">
@@ -183,16 +197,19 @@ function detectPlatform(href: string): Platform | null {
   return null
 }
 
-// 从 URL 上提取当前会话的 id,SPA 路由切换后 location.pathname 会同步更新
+// 从 URL 上提取当前会话的 id。多模式 fallback —— 各家平台 SPA 路径偶尔会变,
+// 容忍度比严格 match 更重要。匹配不到则返回 null,UI 层提示用户"打开一个具体对话"
 function currentConversation(
   platform: Platform,
 ): { id: string; url: string; title: string } | null {
-  if (platform === 'chatgpt') {
-    const m = /\/c\/([\w-]+)/.exec(location.pathname)
-    if (!m || !m[1]) return null
-    return { id: m[1], url: location.href, title: document.title }
+  const patterns: RegExp[] = platform === 'chatgpt'
+    ? [/\/c\/([\w-]+)/, /\/chat\/([\w-]+)/]
+    : [/\/chat\/([\w-]+)/, /\/chats\/([\w-]+)/, /\/c\/([\w-]+)/]
+  for (const re of patterns) {
+    const m = re.exec(location.pathname)
+    if (m && m[1]) {
+      return { id: m[1], url: location.href, title: document.title }
+    }
   }
-  const m = /\/chat\/([\w-]+)/.exec(location.pathname)
-  if (!m || !m[1]) return null
-  return { id: m[1], url: location.href, title: document.title }
+  return null
 }
