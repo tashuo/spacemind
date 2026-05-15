@@ -9,6 +9,8 @@ export function Overlay() {
   const [spaces, setSpaces] = useState<Space[]>([])
   const [query, setQuery] = useState('')
   const [busy, setBusy] = useState(false)
+  // 保存成功后短暂显示「✓ Saved to X」,再关闭 —— 没这个反馈用户会以为没反应
+  const [savedTo, setSavedTo] = useState<string | null>(null)
 
   // background 通过 chrome.tabs.sendMessage 推 `overlay:toggle`,这是 content-script-internal
   // 消息,不进 RuntimeMessageSchema —— 所以这里手动 narrow,不用 sendRuntimeMessage 的解析路径
@@ -85,11 +87,20 @@ export function Overlay() {
       spaceId,
     })
     setBusy(false)
-    setOpen(false)
-    // 失败时只在 console 打一行,不在 UI 上吓人 —— P4 再考虑 toast
     if (reply?.kind === 'conversation:save-reply' && !reply.ok) {
+      // 失败:console 打日志,关掉浮层
       console.error('[SpaceMind] save failed:', reply.error)
+      setOpen(false)
+      return
     }
+    // 成功:展示 1.2 秒确认页,再自动关闭
+    const sp = spaces.find((s) => s.id === spaceId)
+    setSavedTo(sp?.name ?? 'space')
+    setTimeout(() => {
+      setSavedTo(null)
+      setOpen(false)
+      setQuery('')
+    }, 1200)
   }
 
   return (
@@ -102,6 +113,19 @@ export function Overlay() {
         onClick={(e) => e.stopPropagation()}
         className="w-[420px] bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden"
       >
+        {savedTo ? (
+          <div className="px-6 py-10 text-center">
+            <div className="mx-auto w-12 h-12 rounded-full bg-emerald-500/15 flex items-center justify-center mb-3">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 text-emerald-600 dark:text-emerald-400">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </div>
+            <div className="text-sm text-slate-800 dark:text-slate-200">
+              Saved to <strong>{savedTo}</strong>
+            </div>
+          </div>
+        ) : (
+        <>
         <div className="px-4 pt-3 pb-2 border-b border-slate-100 dark:border-slate-800">
           <div className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">
             Save to space
@@ -145,6 +169,8 @@ export function Overlay() {
         <div className="px-4 py-2 text-[10px] text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800">
           ↵ Save · Esc Close · ⌘⇧K Toggle
         </div>
+        </>
+        )}
       </div>
     </div>
   )

@@ -31,6 +31,17 @@ export default function App() {
   useEffect(() => {
     void load()
   }, [load])
+
+  // overlay / content script / 另一个扩展页可能在我们不知情时改 IDB ——
+  // tab 回前台时再 load 一次,保证 manager 看到最新状态。
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === 'visible') void load()
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => document.removeEventListener('visibilitychange', onVis)
+  }, [load])
+
   // Unsorted 默认展开:首次导入用户多半还没分类,展开能让对话立即可见
   const [unsortedExpanded, setUnsortedExpanded] = useState(true)
   const [paletteOpen, setPaletteOpen] = useState(false)
