@@ -162,10 +162,17 @@ export function SpaceCard({ space, conversations, otherSpaces }: Props) {
     if (!raw) return
     e.preventDefault()
     try {
-      const { id } = JSON.parse(raw) as { id: string }
-      // 当前空间内拖到自己 = no-op,静默忽略
-      if (visibleConvIds.includes(id)) return
-      void moveConversationToSpace(id, space.id)
+      const { ids } = JSON.parse(raw) as { ids: string[] }
+      if (!Array.isArray(ids) || ids.length === 0) return
+      // 过滤掉「拖到自己空间」的 no-op 项
+      const incoming = ids.filter((id) => !visibleConvIds.includes(id))
+      if (incoming.length === 0) return
+      if (incoming.length === 1) {
+        void moveConversationToSpace(incoming[0]!, space.id)
+      } else {
+        void moveConversationsToSpace(incoming, space.id)
+      }
+      clearSelection()
     } catch {
       // payload 损坏,放弃
     }
@@ -417,6 +424,7 @@ export function SpaceCard({ space, conversations, otherSpaces }: Props) {
                     palette={palette}
                     selected={selectedConvIds.has(c.id)}
                     selectedCount={selectedConvIds.size}
+                    selectedIds={Array.from(selectedConvIds)}
                     availableSpaces={otherSpaces}
                     onClick={(mode) => selectConv(c.id, mode === 'plain' ? 'replace' : mode, visibleConvIds)}
                     onOpen={() => window.open(c.url, '_blank', 'noopener')}

@@ -118,6 +118,7 @@ export function SearchResults({ query, spaces, conversations }: Props) {
                   palette={palette}
                   selected={selectedConvIds.has(c.id)}
                   selectedCount={selectedConvIds.size}
+                  selectedIds={Array.from(selectedConvIds)}
                   availableSpaces={availableSpaces}
                   onClick={(mode) =>
                     selectConv(c.id, mode === 'plain' ? 'replace' : mode, visibleConvIds)

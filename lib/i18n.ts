@@ -71,6 +71,7 @@ const messages: Record<Lang, Record<string, string>> = {
     // 空间卡片内部
     cardNoConversations: 'No conversations in this space yet. Drag conversations here, or use "Move to…" from another card.',
     dropConversationHere: 'Drop conversation to add it to this space',
+    noOtherSpaces: 'No other spaces yet — create one first',
     unsorted: 'Unsorted',
     unsortedSubtitle: 'Conversations not yet assigned to any space.',
     cardNoConversationsUnsorted: 'No unsorted conversations.',
@@ -225,6 +226,7 @@ const messages: Record<Lang, Record<string, string>> = {
     // 空间卡片内部
     cardNoConversations: '这个空间还没有对话。可以从其他卡片用「移到…」加入,或拖拽进来。',
     dropConversationHere: '松开鼠标把对话加入这个空间',
+    noOtherSpaces: '还没有其他空间 —— 先创建一个',
     unsorted: '未分类',
     unsortedSubtitle: '尚未归入任何空间的对话。',
     cardNoConversationsUnsorted: '没有未分类的对话。',

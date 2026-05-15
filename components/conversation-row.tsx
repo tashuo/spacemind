@@ -11,6 +11,9 @@ interface Props {
   selected: boolean
   /** 拖拽多选徽章用;parent 已经过滤,= 1 时不显示 */
   selectedCount: number
+  /** 当前选区里的全部 id(任何卡片里的选中行都算)。
+   *  拖拽当本行属于选区且选区 ≥ 2 时,payload 携带全部 id,以便批量移动。 */
+  selectedIds: string[]
   /** 移动菜单候选(parent 已过滤掉当前所在空间) */
   availableSpaces: Space[]
   onClick: (modifiers: 'plain' | 'toggle' | 'range') => void
@@ -48,6 +51,7 @@ export function ConversationRow({
   palette,
   selected,
   selectedCount,
+  selectedIds,
   availableSpaces,
   onClick,
   onOpen,
@@ -107,13 +111,14 @@ export function ConversationRow({
     <div
       role="button"
       tabIndex={0}
-      // 单条拖拽:序列化 id,父级 SpaceCard 作为 drop target 拿到后调 moveConversationToSpace
-      // Phase 4b 会扩展为多条 + 卡片级重排;现在只覆盖最低需求
+      // 拖拽 payload:本行属于多选 + 选区 ≥ 2 → 携带全部选中 id;否则只本行。
+      // 父级 SpaceCard / UnsortedCard 作为 drop target 收数组,调批量 move。
       draggable
       onDragStart={(e) => {
+        const ids = selected && selectedIds.length > 1 ? selectedIds : [conversation.id]
         e.dataTransfer.setData(
           'application/x-spacemind-conv',
-          JSON.stringify({ id: conversation.id }),
+          JSON.stringify({ ids }),
         )
         e.dataTransfer.effectAllowed = 'move'
       }}
