@@ -42,6 +42,25 @@ export default function App() {
     return () => document.removeEventListener('visibilitychange', onVis)
   }, [load])
 
+  // background 在 sidebar 静默抓取后会广播 conversations:scraped。
+  // 收到时立刻 reload + 弹 toast,这样 manager 开着时也能感知到「东西在自动进来」。
+  const pushToast = useAppStore((s) => s.pushToast)
+  useEffect(() => {
+    const onMsg = (raw: unknown) => {
+      if (!raw || typeof raw !== 'object') return
+      const m = raw as { kind?: string; platform?: string; added?: number; updated?: number }
+      if (m.kind !== 'conversations:scraped') return
+      const added = m.added ?? 0
+      if (added > 0) {
+        const platform = m.platform === 'chatgpt' ? 'ChatGPT' : 'Claude'
+        pushToast('info', t('toastCaptured', { n: added, platform }))
+      }
+      void load()
+    }
+    chrome.runtime.onMessage.addListener(onMsg)
+    return () => chrome.runtime.onMessage.removeListener(onMsg)
+  }, [load, pushToast, t])
+
   // Unsorted 默认展开:首次导入用户多半还没分类,展开能让对话立即可见
   const [unsortedExpanded, setUnsortedExpanded] = useState(true)
   const [paletteOpen, setPaletteOpen] = useState(false)

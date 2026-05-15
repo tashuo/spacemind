@@ -78,13 +78,27 @@ export default defineBackground(() => {
         }
       }
       case 'conversations:batch-upsert': {
-        // sidebar scraper 触发的 fire-and-forget,无需回包
-        await db.bulkUpsertScrapedConversations(msg.platform, msg.conversations, now)
+        // sidebar scraper 触发的 fire-and-forget,无需回包给发起方;
+        // 但顺手向所有 manager tab 广播一次「捕获了 N 条」,让 UI 有反馈
+        const r = await db.bulkUpsertScrapedConversations(msg.platform, msg.conversations, now)
+        if (r.added > 0 || r.updated > 0) {
+          chrome.runtime
+            .sendMessage({
+              kind: 'conversations:scraped',
+              platform: msg.platform,
+              added: r.added,
+              updated: r.updated,
+            })
+            .catch(() => {
+              // 没有 listener(manager 没开)= 正常 case,吞掉即可
+            })
+        }
         return undefined
       }
-      // reply 类型消息 background 不会收到,但 discriminated union 要求穷举
+      // 这些 reply/broadcast kind 不会发回 background,但 discriminated union 要求穷举
       case 'conversation:save-reply':
       case 'spaces:list-reply':
+      case 'conversations:scraped':
         return undefined
       default:
         return undefined

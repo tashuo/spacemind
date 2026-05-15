@@ -34,6 +34,13 @@ export const RuntimeMessageSchema = z.discriminatedUnion('kind', [
     platform: PlatformSchema,
     conversations: z.array(ScrapedConversationSchema),
   }),
+  // background → 所有 manager tab 的广播,告诉用户「刚把 N 条新对话收进 Unsorted」
+  z.object({
+    kind: z.literal('conversations:scraped'),
+    platform: PlatformSchema,
+    added: z.number(),
+    updated: z.number(),
+  }),
 ])
 export type RuntimeMessage = z.infer<typeof RuntimeMessageSchema>
 
