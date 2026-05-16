@@ -12,6 +12,7 @@ import { CommandPalette } from '@/components/command-palette'
 import { HelpDialog } from '@/components/help-dialog'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { LangToggle } from '@/components/lang-toggle'
+import { TagFilterBar } from '@/components/tag-filter-bar'
 import { Plus } from '@/components/icons'
 import { THEME_PREFS } from '@/lib/theme'
 import { LANGS, LANG_LABELS } from '@/lib/i18n'
@@ -222,6 +223,8 @@ export default function App() {
             <SearchBar />
           </div>
         )}
+
+        {!isEmpty && <TagFilterBar />}
 
         {isEmpty ? (
           <OnboardingDialog />

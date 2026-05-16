@@ -8,10 +8,19 @@ import * as exportImport from '@/lib/export-import'
 
 export type ToastKind = 'info' | 'error'
 
+export interface ToastAction {
+  label: string
+  onAction: () => void
+}
+
 export interface Toast {
   id: number
   kind: ToastKind
   text: string
+  // 可选行动按钮(如 "Undo")。点击后会调用 onAction 并立即 dismiss 当前 toast。
+  // 同时由调用方决定行动后的副作用(restore / retry / etc)
+  action?: ToastAction
+  ttlMs: number
 }
 
 export interface ImportSummary {
@@ -45,6 +54,11 @@ interface State {
   // 真正的输入防抖在 SearchBar 组件里;这里始终拿到的是已防抖后的值,
   // 这样订阅者(主视图、命中数提示)不用在每次按键时重渲。
   searchQuery: string
+
+  // 当前激活的 tag 过滤器(AND 语义:对话需含所有列出的 tag)。
+  // 用小写比较以保持大小写不敏感,但 Set 内存的是 lower-case key 即可,
+  // UI 显示时从某条 conversation.tags 中取首次匹配的原始大小写
+  activeTagFilter: Set<string>
 
   load: () => Promise<void>
   createSpace: (name: string, color: PaletteKey) => Promise<string>
@@ -81,20 +95,29 @@ interface State {
 
   setSearchQuery: (q: string) => void
 
+  toggleTagFilter: (tag: string) => void
+  clearTagFilter: () => void
+
   importFromZip: (buf: ArrayBuffer) => Promise<ImportSummary>
 
   // SpaceMind 自家的 JSON 备份/恢复 —— 与 importFromZip 互不影响
   exportToJson: () => Promise<void>
   importFromJson: (file: File) => Promise<JsonImportSummary>
 
-  pushToast: (kind: ToastKind, text: string) => void
+  // 返回 toast id —— 调用方可以提前 dismiss(如 Undo 行动完成后)。
+  // opts.action 给出行动按钮;opts.ttlMs 覆盖默认 4s,Undo 这种需要长一点(5~10s)
+  pushToast: (
+    kind: ToastKind,
+    text: string,
+    opts?: { action?: ToastAction; ttlMs?: number },
+  ) => number
   dismissToast: (id: number) => void
 }
 
 // 模块级单调 id —— 同一进程内不会重复;Service Worker 重启不影响,toast 本身不持久化
 let toastSeq = 0
 
-/** Toast 自动消失时长。集中常量,便于将来调参或换成可配置 */
+/** Toast 默认自动消失时长。Undo 这类有行动按钮的 toast 会显式传更长的 ttlMs */
 const TOAST_TTL_MS = 4000
 
 // 多选锚点:'range' 模式下用来确定区间起点。
@@ -167,6 +190,7 @@ export const useAppStore = create<State>((set, get) => ({
   spaces: [],
   conversations: [],
   messages: [],
+  activeTagFilter: new Set<string>(),
   importing: false,
   toasts: [],
   selectedConvIds: new Set<string>(),
@@ -421,6 +445,9 @@ export const useAppStore = create<State>((set, get) => ({
     const beforeMessages = get().messages
     const beforeSelection = get().selectedConvIds
     const idSet = new Set(ids)
+    // 拍快照供 Undo:被删的 conversations + 它们的 messages
+    const deletedConvs = before.filter((c) => idSet.has(c.id))
+    const deletedMessages = beforeMessages.filter((m) => idSet.has(m.conversationId))
     const nextList = before.filter((c) => !idSet.has(c.id))
     // db.deleteConversationsCascade 会级联删 messages 行,store 里也得过滤掉,
     // 否则下一次 search 索引重建仍会塞进孤儿 message,匹配出来的 conversation 已不存在
@@ -438,6 +465,33 @@ export const useAppStore = create<State>((set, get) => ({
       get().pushToast('error', 'Failed to delete conversations')
       throw e
     }
+
+    // 推一个 6s 的 Undo toast。行动闭包捕获本次的 deletedConvs / deletedMessages 快照,
+    // 即便用户在 ttl 内又删了别的批次,各 toast 的 Undo 都只撤销自己那一批。
+    // 文案故意走英文硬编码,与现有 pushToast 用法保持一致(后续如需 i18n 统一替换)
+    get().pushToast('info', `Deleted ${deletedConvs.length} conversation(s)`, {
+      ttlMs: 6000,
+      action: {
+        label: 'Undo',
+        onAction: () => {
+          void (async () => {
+            try {
+              await db.bulkPutConversations(deletedConvs)
+              if (deletedMessages.length > 0) await db.bulkPutMessages(deletedMessages)
+              // 重新读 IDB 一遍 —— 比直接把 deletedConvs 合到 state 上更安全,
+              // 因为 ttl 期间用户可能又改了其它行,我们不想拿过时的 state 覆盖
+              const [conversations, messages] = await Promise.all([
+                db.allConversations(),
+                db.allMessages(),
+              ])
+              set({ conversations, messages })
+            } catch {
+              get().pushToast('error', 'Failed to restore')
+            }
+          })()
+        },
+      },
+    })
   },
 
   selectConv: (id, mode, visibleIds) => {
@@ -483,6 +537,18 @@ export const useAppStore = create<State>((set, get) => ({
 
   // 纯内存切换;持久化不需要 —— 搜索关键词是会话期状态,刷新页面应该回到空白
   setSearchQuery: (q) => set({ searchQuery: q }),
+
+  toggleTagFilter: (tag) => {
+    const key = tag.trim().toLowerCase()
+    if (!key) return
+    const current = get().activeTagFilter
+    const next = new Set(current)
+    if (next.has(key)) next.delete(key)
+    else next.add(key)
+    set({ activeTagFilter: next })
+  },
+
+  clearTagFilter: () => set({ activeTagFilter: new Set() }),
 
   // 整包导入:JSZip → vendor 解析 → 用户字段保留的 upsert → bulk 写库 → 刷新内存
   // 失败时 importing 必须重置,否则 UI 进度条永远转
@@ -639,11 +705,15 @@ export const useAppStore = create<State>((set, get) => ({
     }
   },
 
-  pushToast: (kind, text) => {
+  pushToast: (kind, text, opts) => {
     const id = ++toastSeq
-    set((s) => ({ toasts: [...s.toasts, { id, kind, text }] }))
-    // 4s 后自动消失;若用户主动 dismiss,这里再次 filter 是空操作
-    setTimeout(() => get().dismissToast(id), TOAST_TTL_MS)
+    const ttlMs = opts?.ttlMs ?? TOAST_TTL_MS
+    const toast: Toast = { id, kind, text, ttlMs }
+    if (opts?.action) toast.action = opts.action
+    set((s) => ({ toasts: [...s.toasts, toast] }))
+    // 到时自动消失;若用户主动 dismiss / 行动后调用方提前 dismiss,这里 filter 是空操作
+    setTimeout(() => get().dismissToast(id), ttlMs)
+    return id
   },
 
   dismissToast: (id) => {

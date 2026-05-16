@@ -14,6 +14,7 @@ beforeEach(async () => {
     spaces: [],
     conversations: [],
     messages: [],
+    activeTagFilter: new Set(),
     toasts: [],
     selectedConvIds: new Set(),
   })
@@ -382,6 +383,71 @@ describe('app-store.moveConversationsToSpace', () => {
     expect(
       useAppStore.getState().conversations.find((c) => c.id === 'c1')?.spaceId
     ).toBeUndefined()
+  })
+})
+
+describe('app-store.toggleTagFilter / clearTagFilter', () => {
+  it('adds and removes tag (lower-case key)', () => {
+    useAppStore.getState().toggleTagFilter('Work')
+    expect(Array.from(useAppStore.getState().activeTagFilter)).toEqual(['work'])
+    // 再 toggle 同一 tag 应当移除(大小写不敏感)
+    useAppStore.getState().toggleTagFilter('WORK')
+    expect(Array.from(useAppStore.getState().activeTagFilter)).toEqual([])
+  })
+
+  it('AND semantics: multiple tags accumulate', () => {
+    useAppStore.getState().toggleTagFilter('a')
+    useAppStore.getState().toggleTagFilter('b')
+    expect(useAppStore.getState().activeTagFilter.size).toBe(2)
+  })
+
+  it('whitespace-only tag is ignored', () => {
+    useAppStore.getState().toggleTagFilter('   ')
+    expect(useAppStore.getState().activeTagFilter.size).toBe(0)
+  })
+
+  it('clearTagFilter empties the set', () => {
+    useAppStore.getState().toggleTagFilter('a')
+    useAppStore.getState().toggleTagFilter('b')
+    useAppStore.getState().clearTagFilter()
+    expect(useAppStore.getState().activeTagFilter.size).toBe(0)
+  })
+})
+
+describe('app-store.removeConversations undo', () => {
+  it('pushes a toast with Undo action that restores deleted rows', async () => {
+    await useAppStore.getState().load()
+    await seedConversations([
+      mkConversation({ id: 'c1', url: 'https://chatgpt.com/c/c1' }),
+      mkConversation({ id: 'c2', url: 'https://chatgpt.com/c/c2' }),
+    ])
+    await db.bulkPutMessages([
+      { id: 'm1', conversationId: 'c1', role: 'user', content: 'a', timestamp: 0 },
+    ])
+    useAppStore.setState({
+      messages: [{ id: 'm1', conversationId: 'c1', role: 'user', content: 'a', timestamp: 0 }],
+    })
+
+    await useAppStore.getState().removeConversations(['c1'])
+
+    // 删除后 state 里少了 c1
+    expect(useAppStore.getState().conversations.map((c) => c.id)).toEqual(['c2'])
+    // 出现一个带 Undo action 的 toast
+    const toasts = useAppStore.getState().toasts
+    expect(toasts.length).toBeGreaterThan(0)
+    const undoToast = toasts.find((t) => t.action?.label === 'Undo')
+    expect(undoToast).toBeDefined()
+
+    // 触发 Undo
+    undoToast!.action!.onAction()
+    // 等异步 restore 完成
+    await new Promise((r) => setTimeout(r, 50))
+
+    expect(useAppStore.getState().conversations.map((c) => c.id).sort()).toEqual(['c1', 'c2'])
+    expect(useAppStore.getState().messages.map((m) => m.id)).toEqual(['m1'])
+    // IDB 也复原了
+    expect(await db.getConversation('c1')).toBeDefined()
+    expect((await db.messagesForConversation('c1')).map((m) => m.id)).toEqual(['m1'])
   })
 })
 

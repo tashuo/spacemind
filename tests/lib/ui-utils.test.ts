@@ -1,5 +1,22 @@
 import { describe, it, expect } from 'vitest'
-import { reorderInList } from '@/lib/ui-utils'
+import { matchesTagFilter, reorderInList } from '@/lib/ui-utils'
+
+describe('matchesTagFilter', () => {
+  it('passes through when filter is empty', () => {
+    expect(matchesTagFilter({ tags: [] }, new Set())).toBe(true)
+    expect(matchesTagFilter({ tags: ['x'] }, new Set())).toBe(true)
+  })
+
+  it('AND semantics: requires all tags to be present (case-insensitive)', () => {
+    expect(matchesTagFilter({ tags: ['Work', 'Personal'] }, new Set(['work']))).toBe(true)
+    expect(matchesTagFilter({ tags: ['Work'] }, new Set(['work', 'personal']))).toBe(false)
+    expect(matchesTagFilter({ tags: ['Work', 'Personal'] }, new Set(['work', 'personal']))).toBe(true)
+  })
+
+  it('returns false when conv has no tags but filter requires some', () => {
+    expect(matchesTagFilter({ tags: [] }, new Set(['x']))).toBe(false)
+  })
+})
 
 describe('reorderInList', () => {
   it('moves a single item before target', () => {

@@ -129,6 +129,20 @@ export function colorForSpace(id: string): SpacePalette {
   return PALETTE[KEYS[Math.abs(h) % KEYS.length]!]
 }
 
+// AND 语义的 tag 过滤判定:激活过滤器为空 → 全通过;否则要求对话同时包含所有指定 tag。
+// 比较走 lower-case,既 UI(显示原大小写)又 store(只存 lower key)能保持各司其职
+export function matchesTagFilter(
+  conv: { tags: string[] },
+  activeFilter: Set<string>,
+): boolean {
+  if (activeFilter.size === 0) return true
+  const have = new Set(conv.tags.map((t) => t.toLowerCase()))
+  for (const required of activeFilter) {
+    if (!have.has(required)) return false
+  }
+  return true
+}
+
 // 同 space 内拖拽排序的纯函数:把 movingIds 从 currentOrder 抽出来,再插到 targetId 前/后。
 // 保持 movingIds 在原列表里的相对顺序(多选时拖一组,顺序应当一致);target 自己也在
 // movingIds 里(用户拖到自己头上)= 无变化,返回原列表。

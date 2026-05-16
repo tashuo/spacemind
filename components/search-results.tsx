@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import type { Conversation, Space } from '@/lib/schema'
 import { useT } from '@/lib/i18n'
 import { useAppStore } from '@/stores/app-store'
-import { colorForSpace } from '@/lib/ui-utils'
+import { colorForSpace, matchesTagFilter } from '@/lib/ui-utils'
 import { createSearchIndex, type SearchHit } from '@/lib/search'
 import { ConversationRow } from './conversation-row'
 
@@ -34,6 +34,7 @@ export function SearchResults({ query, spaces, conversations }: Props) {
   // 全文索引需要正文 —— store 在 load() 时一次性把 IDB 里的 messages 拉进来,
   // 这里直接读;首次没导入数据时是空数组,createSearchIndex 也能正常工作
   const messages = useAppStore((s) => s.messages)
+  const activeTagFilter = useAppStore((s) => s.activeTagFilter)
 
   const signature = indexSignature(conversations, messages.length)
   const index = useMemo(
@@ -46,20 +47,24 @@ export function SearchResults({ query, spaces, conversations }: Props) {
 
   // 命中 → 按 spaceId 分组(null = unsorted)。
   // 注意保持 hits 内部顺序(已按 FlexSearch 相关性排序),分组时用 Map 的插入序。
+  // tag 过滤在 hits 命中之后再筛 —— 索引层不感知 tag,在结果集上做更直观。
   const grouped = useMemo(() => {
     const hits: SearchHit[] = index.query(query)
     const byId = new Map(conversations.map((c) => [c.id, c]))
     const groups = new Map<string, Conversation[]>() // key: spaceId 或 '__unsorted__'
+    const visibleHits: SearchHit[] = []
     for (const h of hits) {
       const conv = byId.get(h.conversationId)
       if (!conv) continue
+      if (!matchesTagFilter(conv, activeTagFilter)) continue
+      visibleHits.push(h)
       const key = conv.spaceId ?? '__unsorted__'
       const arr = groups.get(key)
       if (arr) arr.push(conv)
       else groups.set(key, [conv])
     }
-    return { hits, groups }
-  }, [index, query, conversations])
+    return { hits: visibleHits, groups }
+  }, [index, query, conversations, activeTagFilter])
 
   const totalHits = grouped.hits.length
   const totalGroups = grouped.groups.size

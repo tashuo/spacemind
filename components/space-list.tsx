@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import type { Conversation, Space } from '@/lib/schema'
 import { useT } from '@/lib/i18n'
 import { useAppStore } from '@/stores/app-store'
-import { colorForSpace, reorderInList } from '@/lib/ui-utils'
+import { colorForSpace, matchesTagFilter, reorderInList } from '@/lib/ui-utils'
 import { SpaceCard } from './space-card'
 import { ConversationRow } from './conversation-row'
 import { ChevronDown } from './icons'
@@ -40,11 +40,14 @@ export function SpaceList({
   unsortedExpanded,
   onToggleUnsorted,
 }: SpaceListProps) {
+  const activeTagFilter = useAppStore((s) => s.activeTagFilter)
+
   // 按 spaceId 分组一次,避免每张卡片单独 filter 一次产生 O(n*m) 复杂度
   const bySpace = useMemo(() => {
     const m = new Map<string, Conversation[]>()
     for (const c of conversations) {
       if (!c.spaceId) continue
+      if (!matchesTagFilter(c, activeTagFilter)) continue
       const arr = m.get(c.spaceId)
       if (arr) arr.push(c)
       else m.set(c.spaceId, [c])
@@ -52,11 +55,14 @@ export function SpaceList({
     // 每组就地排序 —— 排好后 visibleConvIds 也会反映这个顺序(range-click 才不会错位)
     for (const arr of m.values()) arr.sort(sortConversationsForList)
     return m
-  }, [conversations])
+  }, [conversations, activeTagFilter])
 
   const unsorted = useMemo(
-    () => conversations.filter((c) => !c.spaceId).sort(sortConversationsForList),
-    [conversations],
+    () =>
+      conversations
+        .filter((c) => !c.spaceId && matchesTagFilter(c, activeTagFilter))
+        .sort(sortConversationsForList),
+    [conversations, activeTagFilter],
   )
 
   return (

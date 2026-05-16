@@ -94,6 +94,8 @@ export function ConversationRow({
   const removeTag = useAppStore((s) => s.removeTag)
   const setConversationNote = useAppStore((s) => s.setConversationNote)
   const conversations = useAppStore((s) => s.conversations)
+  const toggleTagFilter = useAppStore((s) => s.toggleTagFilter)
+  const activeTagFilter = useAppStore((s) => s.activeTagFilter)
 
   // 全局已用 tag,大小写去重保留首次出现的写法。订阅 conversations 时性能不是问题:
   // 这里是 conversation-row,每行都会跑 —— 但 conversations 是同一引用,Set 也只算一次
@@ -326,24 +328,42 @@ export function ConversationRow({
         )}
         {tags.length > 0 && (
           <div className="flex flex-wrap gap-1 pt-0.5">
-            {tags.map((tag) => (
-              <span
-                key={tag}
-                className="group/chip inline-flex items-center gap-0.5 pl-1.5 pr-0.5 py-px rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-200 text-[10px] font-medium"
-              >
-                {tag}
-                <button
+            {tags.map((tag) => {
+              const isActive = activeTagFilter.has(tag.toLowerCase())
+              return (
+                <span
+                  key={tag}
+                  // chip 整体可点击 → 切换该 tag 过滤;× 按钮单独删除 tag,需要 stopPropagation
+                  // active 状态用更深的紫底,让用户一眼看到"哪个标签正在筛选"
+                  className={`group/chip inline-flex items-center gap-0.5 pl-1.5 pr-0.5 py-px rounded-full text-[10px] font-medium cursor-pointer transition-colors ${
+                    isActive
+                      ? 'bg-purple-500 text-white ring-1 ring-purple-300 dark:ring-purple-600'
+                      : 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800/60'
+                  }`}
                   onClick={(e) => {
                     e.stopPropagation()
-                    void removeTag(conversation.id, tag)
+                    toggleTagFilter(tag)
                   }}
-                  aria-label={t('removeTag', { name: tag })}
-                  className="inline-flex items-center justify-center w-3 h-3 rounded-full hover:bg-purple-200 dark:hover:bg-purple-800/60 opacity-0 group-hover/chip:opacity-100 transition-opacity cursor-pointer"
+                  title={t('filterByTag', { name: tag })}
                 >
-                  <X className="w-2 h-2" />
-                </button>
-              </span>
-            ))}
+                  {tag}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      void removeTag(conversation.id, tag)
+                    }}
+                    aria-label={t('removeTag', { name: tag })}
+                    className={`inline-flex items-center justify-center w-3 h-3 rounded-full opacity-0 group-hover/chip:opacity-100 transition-opacity cursor-pointer ${
+                      isActive
+                        ? 'hover:bg-purple-400'
+                        : 'hover:bg-purple-300 dark:hover:bg-purple-700'
+                    }`}
+                  >
+                    <X className="w-2 h-2" />
+                  </button>
+                </span>
+              )
+            })}
           </div>
         )}
       </div>

@@ -67,6 +67,10 @@ const messages: Record<Lang, Record<string, string>> = {
     noteLabel: 'Note',
     saveNote: 'Save',
     clearNote: 'Clear',
+    filterByTag: 'Filter by "{name}"',
+    filteringBy: 'Filtering by',
+    removeTagFilter: 'Remove filter {name}',
+    clearFilter: 'Clear filter',
 
     // 多选 / 批量
     selectionCount: '{n} selected',
@@ -236,6 +240,10 @@ const messages: Record<Lang, Record<string, string>> = {
     noteLabel: '备注',
     saveNote: '保存',
     clearNote: '清空',
+    filterByTag: '按 "{name}" 筛选',
+    filteringBy: '筛选中',
+    removeTagFilter: '移除筛选 {name}',
+    clearFilter: '清除筛选',
 
     // 多选 / 批量
     selectionCount: '已选 {n} 条',

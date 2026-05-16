@@ -22,6 +22,21 @@ export function ToastStack() {
           }`}
         >
           <span className="flex-1 text-left">{t.text}</span>
+          {t.action && (
+            // 行动按钮(如 Undo)—— 点击后调用方负责副作用,我们顺手 dismiss 当前 toast
+            // 阻止冒泡:外层 onClick 也会 dismiss,但顺序上 action 必须先跑
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                t.action!.onAction()
+                dismissToast(t.id)
+              }}
+              className="font-semibold underline text-white hover:text-white/90 cursor-pointer px-1"
+            >
+              {t.action.label}
+            </button>
+          )}
           <button
             type="button"
             onClick={(e) => {
