@@ -36,4 +36,21 @@ describe('RuntimeMessageSchema', () => {
   it('rejects unknown kind', () => {
     expect(RuntimeMessageSchema.safeParse({ kind: 'bogus' }).success).toBe(false)
   })
+
+  // 关键回归:reply 里只要任一 Space 行损坏不应该让整批废掉。
+  // 之前 schema 是 z.array(SpaceSchema),一条坏数据让 overlay 看不到任何空间
+  it('drops invalid Space rows in spaces:list-reply but keeps valid ones', () => {
+    const r = RuntimeMessageSchema.safeParse({
+      kind: 'spaces:list-reply',
+      spaces: [
+        { id: 'good', name: 'OK', color: 'indigo', createdAt: 0, updatedAt: 0 },
+        { id: 'bad', name: '', color: 'indigo', createdAt: 0, updatedAt: 0 }, // empty name → invalid
+        { id: 'good2', name: 'Also OK', color: 'violet', createdAt: 0, updatedAt: 0 },
+      ],
+    })
+    expect(r.success).toBe(true)
+    if (!r.success) return
+    if (r.data.kind !== 'spaces:list-reply') return
+    expect(r.data.spaces.map((s) => s.id)).toEqual(['good', 'good2'])
+  })
 })

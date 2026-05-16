@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Conversation, PaletteKey, Space } from '@/lib/schema'
+import type { Conversation, Message, PaletteKey, Space } from '@/lib/schema'
 // 必须用 namespace 导入,而不是解构 —— 让测试用 vi.spyOn(db, 'putSpace') 能拦截到调用
 import * as db from '@/lib/db'
 import * as spacesLib from '@/lib/spaces'
@@ -35,6 +35,9 @@ interface State {
   loaded: boolean
   spaces: Space[]
   conversations: Conversation[]
+  // 全文搜索需要正文 —— 启动时一次性 IDB 拉进来,后续导入/删除时同步维护。
+  // 没搜索时 messages 是闲置成本(典型量级:几千~上万条,几 MB),换取搜索零延迟
+  messages: Message[]
   importing: boolean
   toasts: Toast[]
   selectedConvIds: Set<string>
@@ -63,6 +66,16 @@ interface State {
   ) => Promise<void>
   removeConversations: (ids: string[]) => Promise<void>
 
+  /** 把一个 space (或 unsorted)内的对话按 orderedIds 给定顺序重排。
+   *  orderedIds 必须是该 space 当前可见的全部对话 id —— UI 算好新顺序后整组传下来。 */
+  reorderConversations: (orderedIds: string[]) => Promise<void>
+
+  toggleStar: (id: string) => Promise<void>
+  addTag: (id: string, tag: string) => Promise<void>
+  removeTag: (id: string, tag: string) => Promise<void>
+  // undefined / 空串 → 删除 note 字段(不要写 note: undefined,违反 exactOptionalPropertyTypes)
+  setConversationNote: (id: string, note: string | undefined) => Promise<void>
+
   selectConv: (id: string, mode: SelectMode, visibleIds?: string[]) => void
   clearSelection: () => void
 
@@ -88,6 +101,35 @@ const TOAST_TTL_MS = 4000
 // 放模块级而不是 state,是因为 anchor 只在交互瞬间有意义,不需要订阅其变化,
 // 也不需要进入 React 渲染依赖图;放 state 会触发不必要的 re-render。
 let anchorConvId: string | null = null
+
+/**
+ * 通用的 conversation 字段乐观更新 + 回滚封装。
+ * 和 mutateSpace 同一套套路:目标存在则跑 mutator,内存先改,IDB 后写,失败回滚 + 错误 toast。
+ * mutator 返回 null 表示"算下来无需变更",静默退出 —— 避免无意义的 IDB 写和 re-render。
+ */
+async function mutateConversation(
+  get: () => State,
+  set: (partial: Partial<State>) => void,
+  id: string,
+  mutator: (current: Conversation, now: number) => Conversation | null,
+  errorText: string,
+): Promise<void> {
+  const before = get().conversations
+  const target = before.find((c) => c.id === id)
+  if (!target) return
+  const now = Date.now()
+  const next = mutator(target, now)
+  if (!next) return
+  const nextList = before.map((c) => (c.id === id ? next : c))
+  set({ conversations: nextList })
+  try {
+    await db.putConversation(next)
+  } catch (e) {
+    set({ conversations: before })
+    get().pushToast('error', errorText)
+    throw e
+  }
+}
 
 /**
  * 通用的 space 字段乐观更新 + 回滚封装。
@@ -124,6 +166,7 @@ export const useAppStore = create<State>((set, get) => ({
   loaded: false,
   spaces: [],
   conversations: [],
+  messages: [],
   importing: false,
   toasts: [],
   selectedConvIds: new Set<string>(),
@@ -132,14 +175,16 @@ export const useAppStore = create<State>((set, get) => ({
   // load 失败不翻 loaded=true —— 保留给 UI 重试入口,不能伪装成"加载完毕但空"
   load: async () => {
     try {
-      const [spaces, conversations] = await Promise.all([
+      const [spaces, conversations, messages] = await Promise.all([
         db.allSpaces(),
         db.allConversations(),
+        db.allMessages(),
       ])
       set({
         loaded: true,
         spaces: spacesLib.sortedForDisplay(spaces),
         conversations,
+        messages,
       })
     } catch {
       get().pushToast('error', 'Failed to load')
@@ -283,22 +328,113 @@ export const useAppStore = create<State>((set, get) => ({
     }
   },
 
+  reorderConversations: async (orderedIds) => {
+    if (orderedIds.length === 0) return
+    const before = get().conversations
+    const indexById = new Map<string, number>()
+    orderedIds.forEach((id, i) => indexById.set(id, i))
+    // 只对 orderedIds 里的对话改写 sortIndex,其它对话保持原样;
+    // 已存在的对话若新旧 sortIndex 一致也照写一份(O(n) 内存替换,IDB 那一层会跳过没变的)
+    const nextList = before.map((c) => {
+      const i = indexById.get(c.id)
+      if (i === undefined) return c
+      if (c.sortIndex === i) return c
+      return { ...c, sortIndex: i }
+    })
+    set({ conversations: nextList })
+    try {
+      await db.bulkUpdateConversationOrder(orderedIds)
+    } catch (e) {
+      set({ conversations: before })
+      get().pushToast('error', 'Failed to reorder conversations')
+      throw e
+    }
+  },
+
+  toggleStar: async (id) => {
+    await mutateConversation(
+      get,
+      set,
+      id,
+      (current, now) => ({ ...current, starred: !current.starred, platformUpdatedAt: now }),
+      'Failed to toggle star',
+    )
+  },
+
+  // 重复 tag 静默吞掉:返回 null 让 mutateConversation 不做事,避免无意义的写盘。
+  // tag 内部小写做去重 key,但写入保留用户原始大小写
+  addTag: async (id, tag) => {
+    const trimmed = tag.trim()
+    if (!trimmed) return
+    await mutateConversation(
+      get,
+      set,
+      id,
+      (current, now) => {
+        const lower = trimmed.toLowerCase()
+        if (current.tags.some((t) => t.toLowerCase() === lower)) return null
+        return { ...current, tags: [...current.tags, trimmed], platformUpdatedAt: now }
+      },
+      'Failed to add tag',
+    )
+  },
+
+  removeTag: async (id, tag) => {
+    await mutateConversation(
+      get,
+      set,
+      id,
+      (current, now) => {
+        const lower = tag.toLowerCase()
+        const next = current.tags.filter((t) => t.toLowerCase() !== lower)
+        if (next.length === current.tags.length) return null
+        return { ...current, tags: next, platformUpdatedAt: now }
+      },
+      'Failed to remove tag',
+    )
+  },
+
+  setConversationNote: async (id, note) => {
+    await mutateConversation(
+      get,
+      set,
+      id,
+      (current, now) => {
+        const trimmed = note?.trim()
+        if (!trimmed) {
+          // 删除 note 字段:解构丢弃,避免 exactOptionalPropertyTypes 下显式 undefined
+          if (current.note === undefined) return null
+          const { note: _drop, ...rest } = current
+          void _drop
+          return { ...rest, platformUpdatedAt: now }
+        }
+        if (current.note === trimmed) return null
+        return { ...current, note: trimmed, platformUpdatedAt: now }
+      },
+      'Failed to update note',
+    )
+  },
+
   removeConversations: async (ids) => {
     if (ids.length === 0) return
     const before = get().conversations
+    const beforeMessages = get().messages
     const beforeSelection = get().selectedConvIds
     const idSet = new Set(ids)
     const nextList = before.filter((c) => !idSet.has(c.id))
+    // db.deleteConversationsCascade 会级联删 messages 行,store 里也得过滤掉,
+    // 否则下一次 search 索引重建仍会塞进孤儿 message,匹配出来的 conversation 已不存在
+    const nextMessages = beforeMessages.filter((m) => !idSet.has(m.conversationId))
     // 选中态里若包含被删 id,同步剔除 —— 否则 UI 顶部"X selected"计数会失真
     const nextSelection = new Set<string>()
     for (const id of beforeSelection) {
       if (!idSet.has(id)) nextSelection.add(id)
     }
-    set({ conversations: nextList, selectedConvIds: nextSelection })
+    set({ conversations: nextList, messages: nextMessages, selectedConvIds: nextSelection })
     try {
       await db.deleteConversationsCascade(ids)
     } catch (e) {
-      set({ conversations: before, selectedConvIds: beforeSelection })
+      set({ conversations: before, messages: beforeMessages, selectedConvIds: beforeSelection })
       get().pushToast('error', 'Failed to delete conversations')
       throw e
     }
@@ -382,8 +518,11 @@ export const useAppStore = create<State>((set, get) => ({
       await db.bulkPutConversations(merged)
       await db.bulkPutMessages(result.messages)
 
-      const conversations = await db.allConversations()
-      set({ conversations, importing: false })
+      const [conversations, messages] = await Promise.all([
+        db.allConversations(),
+        db.allMessages(),
+      ])
+      set({ conversations, messages, importing: false })
 
       get().pushToast(
         'info',
@@ -408,9 +547,8 @@ export const useAppStore = create<State>((set, get) => ({
   // 失败时推 error toast 并抛,UI 可以决定是否提示用户重试。
   exportToJson: async () => {
     try {
-      // spaces / conversations 直接从内存读(load 后是权威副本);messages 量大,只走 IDB
-      const { spaces, conversations } = get()
-      const messages = await db.allMessages()
+      // 三类对象都从内存读 —— load 之后是权威副本,避免和 IDB 二次读不一致
+      const { spaces, conversations, messages } = get()
       const now = Date.now()
       const content = exportImport.serializeForExport(
         { spaces, conversations, messages },
@@ -473,13 +611,15 @@ export const useAppStore = create<State>((set, get) => ({
     }
 
     // 重新拉一遍,避免本地内存与库不一致(尤其 spaces 的 by-updatedAt 顺序)
-    const [spaces, conversations] = await Promise.all([
+    const [spaces, conversations, messages] = await Promise.all([
       db.allSpaces(),
       db.allConversations(),
+      db.allMessages(),
     ])
     set({
       spaces: spacesLib.sortedForDisplay(spaces),
       conversations,
+      messages,
     })
 
     const total =

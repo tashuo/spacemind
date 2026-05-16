@@ -129,6 +129,24 @@ export function colorForSpace(id: string): SpacePalette {
   return PALETTE[KEYS[Math.abs(h) % KEYS.length]!]
 }
 
+// 同 space 内拖拽排序的纯函数:把 movingIds 从 currentOrder 抽出来,再插到 targetId 前/后。
+// 保持 movingIds 在原列表里的相对顺序(多选时拖一组,顺序应当一致);target 自己也在
+// movingIds 里(用户拖到自己头上)= 无变化,返回原列表。
+export function reorderInList(
+  currentOrder: string[],
+  movingIds: string[],
+  targetId: string,
+  before: boolean,
+): string[] {
+  const movingSet = new Set(movingIds)
+  const movingInOrder = currentOrder.filter((id) => movingSet.has(id))
+  const remaining = currentOrder.filter((id) => !movingSet.has(id))
+  const targetIdx = remaining.indexOf(targetId)
+  if (targetIdx === -1) return currentOrder
+  const insertAt = before ? targetIdx : targetIdx + 1
+  return [...remaining.slice(0, insertAt), ...movingInOrder, ...remaining.slice(insertAt)]
+}
+
 export function relativeTime(
   ts: number,
   t: (key: string, params?: Record<string, string | number>) => string,
@@ -147,3 +165,4 @@ export function relativeTime(
   if (day < 365) return t('timeMonthsAgo', { n: Math.floor(day / 30) })
   return t('timeYearsAgo', { n: Math.floor(day / 365) })
 }
+

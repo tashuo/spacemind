@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import type { Conversation, Space } from '@/lib/schema'
 import { useT } from '@/lib/i18n'
 import { useAppStore } from '@/stores/app-store'
-import { colorForSpace } from '@/lib/ui-utils'
+import { colorForSpace, reorderInList } from '@/lib/ui-utils'
 import { SpaceCard } from './space-card'
 import { ConversationRow } from './conversation-row'
 import { ChevronDown } from './icons'
@@ -15,6 +15,23 @@ interface SpaceListProps {
   conversations: Conversation[]
   unsortedExpanded: boolean
   onToggleUnsorted: () => void
+}
+
+// 列表内对话排序优先级:
+//   1) starred 置顶
+//   2) 有 sortIndex(用户拖过的)排在没有的之前;两者都有时按 sortIndex 升序
+//   3) 两者都没有 sortIndex 时按 platformUpdatedAt 倒序(新的在前)
+// 搜索结果不走这条 —— 搜索时 FlexSearch 的相关性更重要。
+function sortConversationsForList(a: Conversation, b: Conversation): number {
+  if (a.starred !== b.starred) return a.starred ? -1 : 1
+  const aHas = a.sortIndex !== undefined
+  const bHas = b.sortIndex !== undefined
+  if (aHas && bHas) return a.sortIndex! - b.sortIndex!
+  if (aHas) return -1
+  if (bHas) return 1
+  const at = a.platformUpdatedAt ?? a.capturedAt
+  const bt = b.platformUpdatedAt ?? b.capturedAt
+  return bt - at
 }
 
 export function SpaceList({
@@ -32,10 +49,15 @@ export function SpaceList({
       if (arr) arr.push(c)
       else m.set(c.spaceId, [c])
     }
+    // 每组就地排序 —— 排好后 visibleConvIds 也会反映这个顺序(range-click 才不会错位)
+    for (const arr of m.values()) arr.sort(sortConversationsForList)
     return m
   }, [conversations])
 
-  const unsorted = useMemo(() => conversations.filter((c) => !c.spaceId), [conversations])
+  const unsorted = useMemo(
+    () => conversations.filter((c) => !c.spaceId).sort(sortConversationsForList),
+    [conversations],
+  )
 
   return (
     <div className="space-y-3">
@@ -75,6 +97,7 @@ function UnsortedCard({ conversations, expanded, onToggle, otherSpaces }: Unsort
   const removeConversations = useAppStore((s) => s.removeConversations)
   const selectConv = useAppStore((s) => s.selectConv)
   const clearSelection = useAppStore((s) => s.clearSelection)
+  const reorderConversations = useAppStore((s) => s.reorderConversations)
 
   // 复用 indigo 调色板作为 unsorted 的视觉锚 —— 它在 6 色环里中性偏冷,不会和任一真实空间撞色
   const palette = useMemo(() => colorForSpace('__unsorted__'), [])
@@ -299,10 +322,16 @@ function UnsortedCard({ conversations, expanded, onToggle, otherSpaces }: Unsort
                     selectedCount={selectedConvIds.size}
                     selectedIds={selectedIdsArr}
                     availableSpaces={otherSpaces}
+                    spaceConvIds={visibleConvIds}
                     onClick={(mode) => selectConv(c.id, mode === 'plain' ? 'replace' : mode, visibleConvIds)}
                     onOpen={() => window.open(c.url, '_blank', 'noopener')}
                     onMove={(toSpaceId) => void moveConversationToSpace(c.id, toSpaceId)}
                     onRemove={() => void removeConversations([c.id])}
+                    onReorder={(movingIds, targetId, before) => {
+                      const next = reorderInList(visibleConvIds, movingIds, targetId, before)
+                      if (next === visibleConvIds) return
+                      void reorderConversations(next)
+                    }}
                   />
                 ))}
               </div>

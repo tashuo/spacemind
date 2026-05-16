@@ -17,11 +17,30 @@ let mounted: { host: HTMLElement; root: Root } | null = null
 //   3. z-index 拉满到 2147483647 —— ChatGPT/Claude 自己用了多层 portal,留余量
 //   4. open mode shadow —— devtools 能查到节点,排查样式比 closed mode 容易得多
 //   5. CSS 通过 `<style>` 注入到 shadow 内部,确保 Tailwind utility 只对 overlay 生效
+// 宿主页(Claude / ChatGPT 都是 Next.js App Router)用 React 18 hydrate <body>,
+// 内容脚本在 document_idle 就往 body append 节点会让 client tree ≠ SSR tree → React #418。
+// 即便 #418 是宿主页自己的 bug,recovery 时它有可能把整段 body fallback 重渲,把我们的 host 拍掉。
+// 综合策略:
+//   1. 延后到 window.load + 200ms 再挂载 —— hydration 与可能的 recovery 都走完了
+//   2. 装一个 MutationObserver 监视 host 节点 —— 若真被宿主页摘掉,自动补回去
+//      (最多接 5 次,防止真出 bug 时无限循环;正常场景重接 0~1 次足矣)
+const REATTACH_LIMIT = 5
+const MOUNT_DELAY_AFTER_LOAD_MS = 200
+
 export function ensureOverlayMounted(): void {
   if (mounted) return
+  const schedule = () => setTimeout(doMount, MOUNT_DELAY_AFTER_LOAD_MS)
+  if (document.readyState === 'complete') {
+    schedule()
+  } else {
+    window.addEventListener('load', schedule, { once: true })
+  }
+}
 
-  // SPA(ChatGPT/Claude 都是)切路由时 content script 可能被重新执行 ——
-  // 旧的 host 还挂在 DOM 上但 React root 已失联,先扫一遍清掉
+function doMount(): void {
+  if (mounted) return
+
+  // SPA 切路由时 content script 可能被重新执行 —— 旧 host 残留先扫掉
   document.getElementById(HOST_ID)?.remove()
 
   const host = document.createElement('div')
@@ -45,6 +64,21 @@ export function ensureOverlayMounted(): void {
   root.render(React.createElement(Overlay))
 
   mounted = { host, root }
+  watchAndReattach(host)
+}
+
+function watchAndReattach(host: HTMLElement): void {
+  let attempts = 0
+  const observer = new MutationObserver(() => {
+    if (document.contains(host)) return
+    if (attempts++ >= REATTACH_LIMIT) {
+      observer.disconnect()
+      console.warn('[SpaceMind] overlay host removed too often, giving up')
+      return
+    }
+    document.body.appendChild(host)
+  })
+  observer.observe(document.body, { childList: true })
 }
 
 // 显式拆卸入口 —— 主要给单测和未来的 disable 流程用,生产 content script 不主动调用

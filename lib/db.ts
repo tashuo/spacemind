@@ -138,6 +138,23 @@ export async function deleteConversation(id: string): Promise<void> {
   await db.delete('conversations', id)
 }
 
+// 把一组 conversation 的位置写成给定顺序 —— ids[0] 拿 0, ids[1] 拿 1, ...
+// 调用方需要保证 ids 是用户期望的最终顺序(已包含未移动的 + 移动的)。
+// 单事务保证排序结果原子写入,不会出现中间态;platformUpdatedAt 不动,只动 sortIndex。
+export async function bulkUpdateConversationOrder(ids: string[]): Promise<void> {
+  if (ids.length === 0) return
+  const db = await openDb()
+  const tx = db.transaction('conversations', 'readwrite')
+  for (let i = 0; i < ids.length; i++) {
+    const id = ids[i]!
+    const existing = await tx.store.get(id)
+    if (!existing) continue
+    if (existing.sortIndex === i) continue
+    await tx.store.put({ ...existing, sortIndex: i })
+  }
+  await tx.done
+}
+
 // 批量改写一组 conversation 的 spaceId。null 表示移出空间,
 // 在 exactOptionalPropertyTypes 下要"删字段"而不是写 spaceId: undefined。
 // 单事务保证半截失败不会留下错位的归属。

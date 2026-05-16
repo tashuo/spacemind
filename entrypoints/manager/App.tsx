@@ -11,8 +11,10 @@ import { ToastStack } from '@/components/toast-stack'
 import { CommandPalette } from '@/components/command-palette'
 import { HelpDialog } from '@/components/help-dialog'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { LangToggle } from '@/components/lang-toggle'
 import { Plus } from '@/components/icons'
 import { THEME_PREFS } from '@/lib/theme'
+import { LANGS, LANG_LABELS } from '@/lib/i18n'
 import type { Command } from '@/lib/commands'
 import { pickJsonFile } from '@/lib/export-import'
 
@@ -24,7 +26,7 @@ export default function App() {
   // 主题钩子既负责把 document 的 dark class 应用上,
   // 也把当前 pref / setter 暴露给命令面板循环。一次调用,两件事。
   const { pref: themePref, setPref: setThemePref } = useTheme()
-  const { t } = useT()
+  const { t, lang, setLang } = useT()
   const { loaded, spaces, conversations, importing, load, importFromZip, createSpace, exportToJson, importFromJson } = useAppStore()
   const searchQuery = useAppStore((s) => s.searchQuery)
 
@@ -102,6 +104,18 @@ export default function App() {
       },
     })
 
+    // 切换语言 —— description 直接显示下一个语言的本地化名,用户一眼能预判按下后变成什么
+    list.push({
+      id: 'switch-language',
+      group: 'action',
+      label: t('cmdSwitchLanguage'),
+      description: LANG_LABELS[LANGS[(LANGS.indexOf(lang) + 1) % LANGS.length]!],
+      perform: () => {
+        const i = LANGS.indexOf(lang)
+        setLang(LANGS[(i + 1) % LANGS.length]!)
+      },
+    })
+
     list.push({
       id: 'import-zip',
       group: 'action',
@@ -163,7 +177,7 @@ export default function App() {
     }
 
     return list
-  }, [themePref, setThemePref, spaces, t, exportToJson, importFromJson])
+  }, [themePref, setThemePref, lang, setLang, spaces, t, exportToJson, importFromJson])
 
   if (!loaded) return null
 
@@ -178,6 +192,7 @@ export default function App() {
         <header className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-semibold">SpaceMind</h1>
           <div className="flex items-center gap-2">
+            <LangToggle />
             <ThemeToggle />
             {!isEmpty && (
               <>

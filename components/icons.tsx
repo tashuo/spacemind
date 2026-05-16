@@ -110,6 +110,25 @@ export function FileText({ className }: IconProps) {
   )
 }
 
+export function Globe({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <circle cx="12" cy="12" r="10" />
+      <line x1="2" y1="12" x2="22" y2="12" />
+      <path d="M12 2a15 15 0 0 1 4 10 15 15 0 0 1-4 10 15 15 0 0 1-4-10 15 15 0 0 1 4-10z" />
+    </svg>
+  )
+}
+
+export function Tag({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M20.59 13.41 13.41 20.59a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+      <circle cx="7" cy="7" r="1.4" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
 export function Plus({ className }: IconProps) {
   return (
     <svg {...base} className={className}>

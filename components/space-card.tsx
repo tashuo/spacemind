@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { Conversation, Space } from '@/lib/schema'
 import { useT } from '@/lib/i18n'
-import { colorForSpace, relativeTime } from '@/lib/ui-utils'
+import { colorForSpace, relativeTime, reorderInList } from '@/lib/ui-utils'
 import { useAppStore } from '@/stores/app-store'
 import { ConversationRow } from './conversation-row'
 import { ChevronDown, Copy, FileText, Pencil, Sparkle, Star, StarFilled, Trash } from './icons'
@@ -33,6 +33,7 @@ export function SpaceCard({ space, conversations, otherSpaces }: Props) {
   const removeConversations = useAppStore((s) => s.removeConversations)
   const selectConv = useAppStore((s) => s.selectConv)
   const clearSelection = useAppStore((s) => s.clearSelection)
+  const reorderConversations = useAppStore((s) => s.reorderConversations)
 
   const [collapsed, setCollapsed] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -426,10 +427,16 @@ export function SpaceCard({ space, conversations, otherSpaces }: Props) {
                     selectedCount={selectedConvIds.size}
                     selectedIds={Array.from(selectedConvIds)}
                     availableSpaces={otherSpaces}
+                    spaceConvIds={visibleConvIds}
                     onClick={(mode) => selectConv(c.id, mode === 'plain' ? 'replace' : mode, visibleConvIds)}
                     onOpen={() => window.open(c.url, '_blank', 'noopener')}
                     onMove={(toSpaceId) => void moveConversationToSpace(c.id, toSpaceId)}
                     onRemove={() => void removeConversations([c.id])}
+                    onReorder={(movingIds, targetId, before) => {
+                      const next = reorderInList(visibleConvIds, movingIds, targetId, before)
+                      if (next === visibleConvIds) return
+                      void reorderConversations(next)
+                    }}
                   />
                 ))}
               </div>

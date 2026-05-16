@@ -15,12 +15,13 @@ interface Props {
 // 用一个稳定的字符串签名做 useMemo 依赖,避免在每次 conversations 数组引用变化时
 // 都重建索引。conversations.length + 各自 platformUpdatedAt 的合计足够区分增删改:
 // 增/删会改长度;改字段会改 platformUpdatedAt(乐观更新已经写入 now)。
-function indexSignature(conversations: Conversation[]): string {
+// messages 也带上 length —— 它一变就必然意味着导入/删除发生过,需要重建消息索引。
+function indexSignature(conversations: Conversation[], messageCount: number): string {
   let sum = 0
   for (const c of conversations) {
     sum += c.platformUpdatedAt ?? c.capturedAt
   }
-  return `${conversations.length}:${sum}`
+  return `${conversations.length}:${sum}:${messageCount}`
 }
 
 export function SearchResults({ query, spaces, conversations }: Props) {
@@ -30,14 +31,15 @@ export function SearchResults({ query, spaces, conversations }: Props) {
   const moveConversationToSpace = useAppStore((s) => s.moveConversationToSpace)
   const removeConversations = useAppStore((s) => s.removeConversations)
   const selectConv = useAppStore((s) => s.selectConv)
+  // 全文索引需要正文 —— store 在 load() 时一次性把 IDB 里的 messages 拉进来,
+  // 这里直接读;首次没导入数据时是空数组,createSearchIndex 也能正常工作
+  const messages = useAppStore((s) => s.messages)
 
-  // TODO(Phase 5): 当前 messages 数组留空,只搜 title + preview。
-  // 全文搜索需要预加载 messages 或直接查 IDB —— 见 plan 注释。
-  const signature = indexSignature(conversations)
+  const signature = indexSignature(conversations, messages.length)
   const index = useMemo(
-    () => createSearchIndex({ conversations, messages: [] }),
-    // signature 已经覆盖 conversations 的增删改,直接列上 conversations 反而会让
-    // 索引在每次乐观更新返回新引用时无谓重建;故有意只依赖 signature。
+    () => createSearchIndex({ conversations, messages }),
+    // signature 已经覆盖 conversations / messages 的增删改,直接列上 conversations / messages
+    // 反而会让索引在每次乐观更新返回新引用时无谓重建;故有意只依赖 signature。
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [signature],
   )

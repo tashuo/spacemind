@@ -44,6 +44,9 @@ export const ConversationSchema = z.object({
   capturedAt: z.number(),
   platformUpdatedAt: z.number().optional(),
   messageCount: z.number().optional(),
+  // 用户手动拖拽排序后的位置;升序展示(0 = 顶部)。
+  // 没拖过的对话不写这个字段,UI 排序时会把它们放在已排过的后面、按时间继续排
+  sortIndex: z.number().optional(),
   preview: z
     .object({
       firstUserMessage: z.string().optional(),

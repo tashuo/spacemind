@@ -13,6 +13,7 @@ beforeEach(async () => {
     loaded: false,
     spaces: [],
     conversations: [],
+    messages: [],
     toasts: [],
     selectedConvIds: new Set(),
   })
@@ -384,6 +385,45 @@ describe('app-store.moveConversationsToSpace', () => {
   })
 })
 
+describe('app-store messages state', () => {
+  it('loads messages alongside conversations on load()', async () => {
+    await db.putConversation({
+      id: 'c1',
+      platform: 'chatgpt',
+      url: 'https://chatgpt.com/c/c1',
+      title: 'T',
+      tags: [],
+      starred: false,
+      capturedAt: 0,
+    })
+    await db.bulkPutMessages([
+      { id: 'm1', conversationId: 'c1', role: 'user', content: 'hello world', timestamp: 0 },
+    ])
+    await useAppStore.getState().load()
+    expect(useAppStore.getState().messages.map((m) => m.id)).toEqual(['m1'])
+  })
+
+  it('drops messages of deleted conversations from state', async () => {
+    await useAppStore.getState().load()
+    await seedConversations([
+      mkConversation({ id: 'c1' }),
+      mkConversation({ id: 'c2', url: 'https://chatgpt.com/c/c2' }),
+    ])
+    await db.bulkPutMessages([
+      { id: 'm1', conversationId: 'c1', role: 'user', content: 'a', timestamp: 0 },
+      { id: 'm2', conversationId: 'c2', role: 'user', content: 'b', timestamp: 0 },
+    ])
+    useAppStore.setState({
+      messages: [
+        { id: 'm1', conversationId: 'c1', role: 'user', content: 'a', timestamp: 0 },
+        { id: 'm2', conversationId: 'c2', role: 'user', content: 'b', timestamp: 0 },
+      ],
+    })
+    await useAppStore.getState().removeConversations(['c1'])
+    expect(useAppStore.getState().messages.map((m) => m.id)).toEqual(['m2'])
+  })
+})
+
 describe('app-store.removeConversations', () => {
   it('removes from state, IDB rows, and cascades messages', async () => {
     await useAppStore.getState().load()
@@ -433,6 +473,142 @@ describe('app-store.removeConversations', () => {
     await seedConversations([mkConversation({ id: 'c1' })])
     await useAppStore.getState().removeConversations([])
     expect(useAppStore.getState().conversations.map((c) => c.id)).toEqual(['c1'])
+  })
+})
+
+describe('app-store.reorderConversations', () => {
+  it('writes sortIndex by position for each id', async () => {
+    await useAppStore.getState().load()
+    await seedConversations([
+      mkConversation({ id: 'c1', url: 'https://chatgpt.com/c/c1' }),
+      mkConversation({ id: 'c2', url: 'https://chatgpt.com/c/c2' }),
+      mkConversation({ id: 'c3', url: 'https://chatgpt.com/c/c3' }),
+    ])
+    await useAppStore.getState().reorderConversations(['c3', 'c1', 'c2'])
+    const all = useAppStore.getState().conversations
+    expect(all.find((c) => c.id === 'c3')?.sortIndex).toBe(0)
+    expect(all.find((c) => c.id === 'c1')?.sortIndex).toBe(1)
+    expect(all.find((c) => c.id === 'c2')?.sortIndex).toBe(2)
+    // 持久化也对得上
+    expect((await db.getConversation('c3'))?.sortIndex).toBe(0)
+    expect((await db.getConversation('c1'))?.sortIndex).toBe(1)
+    expect((await db.getConversation('c2'))?.sortIndex).toBe(2)
+  })
+
+  it('empty list is a no-op (no IDB write)', async () => {
+    await useAppStore.getState().load()
+    await seedConversations([mkConversation({ id: 'c1' })])
+    const spy = vi.spyOn(db, 'bulkUpdateConversationOrder')
+    await useAppStore.getState().reorderConversations([])
+    expect(spy).not.toHaveBeenCalled()
+  })
+
+  it('rolls back state on IDB failure', async () => {
+    await useAppStore.getState().load()
+    await seedConversations([
+      mkConversation({ id: 'c1' }),
+      mkConversation({ id: 'c2', url: 'https://chatgpt.com/c/c2' }),
+    ])
+    const snapshot = useAppStore.getState().conversations
+    vi.spyOn(db, 'bulkUpdateConversationOrder').mockRejectedValueOnce(new Error('boom'))
+    await expect(useAppStore.getState().reorderConversations(['c2', 'c1'])).rejects.toThrow()
+    expect(useAppStore.getState().conversations).toEqual(snapshot)
+  })
+})
+
+describe('app-store.toggleStar', () => {
+  it('flips starred and persists', async () => {
+    await useAppStore.getState().load()
+    await seedConversations([mkConversation({ id: 'c1' })])
+    await useAppStore.getState().toggleStar('c1')
+    expect(useAppStore.getState().conversations.find((c) => c.id === 'c1')?.starred).toBe(true)
+    expect((await db.getConversation('c1'))?.starred).toBe(true)
+    await useAppStore.getState().toggleStar('c1')
+    expect(useAppStore.getState().conversations.find((c) => c.id === 'c1')?.starred).toBe(false)
+  })
+
+  it('is a no-op when id is unknown', async () => {
+    await useAppStore.getState().load()
+    await seedConversations([mkConversation({ id: 'c1' })])
+    await useAppStore.getState().toggleStar('ghost')
+    expect(useAppStore.getState().conversations.find((c) => c.id === 'c1')?.starred).toBe(false)
+  })
+
+  it('rolls back on IDB failure', async () => {
+    await useAppStore.getState().load()
+    await seedConversations([mkConversation({ id: 'c1' })])
+    const snapshot = useAppStore.getState().conversations
+    vi.spyOn(db, 'putConversation').mockRejectedValueOnce(new Error('boom'))
+    await expect(useAppStore.getState().toggleStar('c1')).rejects.toThrow()
+    expect(useAppStore.getState().conversations).toEqual(snapshot)
+  })
+})
+
+describe('app-store.addTag / removeTag', () => {
+  it('adds a new tag and trims whitespace', async () => {
+    await useAppStore.getState().load()
+    await seedConversations([mkConversation({ id: 'c1' })])
+    await useAppStore.getState().addTag('c1', '  Work  ')
+    expect(useAppStore.getState().conversations.find((c) => c.id === 'c1')?.tags).toEqual(['Work'])
+  })
+
+  it('dedupes case-insensitively without bumping IDB', async () => {
+    await useAppStore.getState().load()
+    await seedConversations([mkConversation({ id: 'c1', tags: ['Work'] })])
+    const spy = vi.spyOn(db, 'putConversation')
+    await useAppStore.getState().addTag('c1', 'work')
+    expect(useAppStore.getState().conversations.find((c) => c.id === 'c1')?.tags).toEqual(['Work'])
+    expect(spy).not.toHaveBeenCalled()
+  })
+
+  it('removes existing tag case-insensitively', async () => {
+    await useAppStore.getState().load()
+    await seedConversations([mkConversation({ id: 'c1', tags: ['Work', 'Personal'] })])
+    await useAppStore.getState().removeTag('c1', 'WORK')
+    expect(useAppStore.getState().conversations.find((c) => c.id === 'c1')?.tags).toEqual(['Personal'])
+  })
+
+  it('removeTag is a no-op when the tag is absent', async () => {
+    await useAppStore.getState().load()
+    await seedConversations([mkConversation({ id: 'c1', tags: ['Work'] })])
+    const spy = vi.spyOn(db, 'putConversation')
+    await useAppStore.getState().removeTag('c1', 'Personal')
+    expect(spy).not.toHaveBeenCalled()
+  })
+
+  it('addTag with empty/whitespace is a no-op', async () => {
+    await useAppStore.getState().load()
+    await seedConversations([mkConversation({ id: 'c1' })])
+    const spy = vi.spyOn(db, 'putConversation')
+    await useAppStore.getState().addTag('c1', '   ')
+    expect(spy).not.toHaveBeenCalled()
+  })
+})
+
+describe('app-store.setConversationNote', () => {
+  it('sets and clears note', async () => {
+    await useAppStore.getState().load()
+    await seedConversations([mkConversation({ id: 'c1' })])
+    await useAppStore.getState().setConversationNote('c1', 'remember why')
+    expect(useAppStore.getState().conversations.find((c) => c.id === 'c1')?.note).toBe('remember why')
+    await useAppStore.getState().setConversationNote('c1', '')
+    expect(useAppStore.getState().conversations.find((c) => c.id === 'c1')?.note).toBeUndefined()
+  })
+
+  it('clears note when given undefined', async () => {
+    await useAppStore.getState().load()
+    await seedConversations([mkConversation({ id: 'c1' })])
+    await useAppStore.getState().setConversationNote('c1', 'x')
+    await useAppStore.getState().setConversationNote('c1', undefined)
+    expect(useAppStore.getState().conversations.find((c) => c.id === 'c1')?.note).toBeUndefined()
+  })
+
+  it('does not write to IDB when note is unchanged', async () => {
+    await useAppStore.getState().load()
+    await seedConversations([mkConversation({ id: 'c1', note: 'same' })])
+    const spy = vi.spyOn(db, 'putConversation')
+    await useAppStore.getState().setConversationNote('c1', 'same')
+    expect(spy).not.toHaveBeenCalled()
   })
 })
 
