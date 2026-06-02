@@ -45,6 +45,14 @@ export function ChevronDown({ className }: IconProps) {
   )
 }
 
+export function Check({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  )
+}
+
 // 右上角斜向外的箭头 —— "在新标签页打开"。
 // 与 spacetab 的 ArrowRight 区分,后者是同方向(列表中"移到下一个空间")语义。
 export function ExternalLink({ className }: IconProps) {
