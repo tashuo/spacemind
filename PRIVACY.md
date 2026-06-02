@@ -1,7 +1,7 @@
 # Privacy Policy · SpaceMind
 
 **Effective:** 2026-05-15
-**Last updated:** 2026-05-15
+**Last updated:** 2026-06-02
 
 > **TL;DR** — SpaceMind does not collect, transmit, or sell any data. Everything you create stays on your device, in your browser, and never leaves it.
 
@@ -18,7 +18,7 @@ The data SpaceMind creates lives entirely in your browser's local storage (`chro
 The stored data includes:
 
 - **Spaces** — names, emoji, notes, pinned / order metadata
-- **Conversations** — id, platform (ChatGPT / Claude), URL, title, optional `spaceId` assignment, tags, starred flag, optional note, `capturedAt`, `platformUpdatedAt`, and short message previews
+- **Conversations** — id, platform (ChatGPT / Claude / Gemini / DeepSeek / Mistral), URL, title, optional `spaceId` assignment, tags, starred flag, optional note, `capturedAt`, `platformUpdatedAt`, and short message previews
 - **Messages** — when you import a ZIP export from ChatGPT or Claude, the full message content (title + role + content + timestamp) is stored locally so you can search it
 - **Preferences** — theme (system / light / dark), language, and the keyboard binding for the Cmd+Shift+K overlay
 
@@ -31,21 +31,21 @@ SpaceMind requests a minimal set of Chrome permissions. Each is used only for th
 | Permission | Why we need it |
 |---|---|
 | `storage` | Persist your spaces, conversations, and messages locally in `chrome.storage.local` and a local IndexedDB database so they survive browser restarts. |
-| `host_permissions` for `chatgpt.com` and `claude.ai` | A content script runs in your ChatGPT and Claude tabs to read the sidebar DOM and identify the conversations in your own account, and to render the Cmd+Shift+K overlay on the page. No data is transmitted off your device; the DOM is only read inside your tab. |
+| `host_permissions` for `chatgpt.com`, `claude.ai`, `gemini.google.com`, `chat.deepseek.com`, and `chat.mistral.ai` | A content script runs in your tabs on these AI chat sites to read the sidebar DOM and identify the conversations in your own account, and to render the Cmd+Shift+K overlay on the page. No data is transmitted off your device; the DOM is only read inside your tab. |
 
 We do **not** request `tabs`, `tabGroups`, `<all_urls>`, or any other elevated capabilities.
 
 ## 4. Third parties
 
-SpaceMind does **not** integrate any third-party SDK, analytics service, A/B testing tool, or advertising network. It does not send data to Anthropic, OpenAI, Google, or any other party.
+SpaceMind does **not** integrate any third-party SDK, analytics service, A/B testing tool, or advertising network. It does not send data to OpenAI, Anthropic, Google, DeepSeek, Mistral, or any other party.
 
-The ChatGPT (`chatgpt.com`) and Claude (`claude.ai`) pages are accessed only via SpaceMind's content scripts, which **read** the DOM to identify your conversations and render the overlay. The content scripts never inject scripts into those pages, never modify their content, and never call those services' APIs on your behalf.
+The supported AI chat pages (`chatgpt.com`, `claude.ai`, `gemini.google.com`, `chat.deepseek.com`, `chat.mistral.ai`) are accessed only via SpaceMind's content scripts, which **read** the DOM to identify your conversations and render the overlay. The content scripts never inject scripts into those pages, never modify their content, and never call those services' APIs on your behalf.
 
 ## 5. Network
 
 SpaceMind itself makes **no** outbound network requests. The extension is a static page bundle plus a service worker and content scripts; none of them contacts a SpaceMind server (we don't have one).
 
-The only network traffic from SpaceMind's perspective is your normal browsing — when you click a saved conversation, your browser navigates to `chatgpt.com` or `claude.ai` the same way it would if you typed the URL yourself. That is your own browsing activity, not telemetry.
+The only network traffic from SpaceMind's perspective is your normal browsing — when you click a saved conversation, your browser navigates to the conversation's site (e.g. `chatgpt.com`, `claude.ai`, `gemini.google.com`, `chat.deepseek.com`, `chat.mistral.ai`) the same way it would if you typed the URL yourself. That is your own browsing activity, not telemetry.
 
 ## 6. Children
 
