@@ -6,11 +6,17 @@ export default defineConfig({
   vite: () => ({ plugins: [tailwindcss()] }),
   manifest: {
     name: 'SpaceMind',
-    description: 'Organize ChatGPT & Claude conversations into project spaces. Local-first, no account, open source.',
+    description: 'Organize ChatGPT, Claude, Gemini, DeepSeek & Mistral conversations into project spaces. Local-first, no account, open source.',
     version: '1.0.0',
     homepage_url: 'https://github.com/tashuo/spacemind',
     permissions: ['storage'],
-    host_permissions: ['https://chatgpt.com/*', 'https://claude.ai/*'],
+    host_permissions: [
+      'https://chatgpt.com/*',
+      'https://claude.ai/*',
+      'https://gemini.google.com/*',
+      'https://chat.deepseek.com/*',
+      'https://chat.mistral.ai/*',
+    ],
     action: {
       default_title: 'SpaceMind',
     },

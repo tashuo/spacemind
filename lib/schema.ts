@@ -11,8 +11,15 @@ export const PaletteKeySchema = z.enum([
 ])
 export type PaletteKey = z.infer<typeof PaletteKeySchema>
 
-// 平台 enum 只放当前支持的两家,未来加 gemini/mistral 必须显式升 schema
-export const PlatformSchema = z.enum(['chatgpt', 'claude'])
+// 支持的平台列表。新增一家:
+//   1) 这里加 enum
+//   2) lib/sidebar-scrape/ 加 config
+//   3) entrypoints/content-<name>.content.ts 加内容脚本
+//   4) Overlay.tsx 加 detectPlatform + currentConversation 分支
+//   5) conversation-row.tsx 加 PLATFORM_ABBR + PLATFORM_STYLE
+//   6) wxt.config.ts 加 host_permissions
+//   7) lib/i18n.ts 加 platformX 文案
+export const PlatformSchema = z.enum(['chatgpt', 'claude', 'gemini', 'deepseek', 'mistral'])
 export type Platform = z.infer<typeof PlatformSchema>
 
 // 与主流 LLM API 一致的四种 role,避免后续解析 tool 调用时再补类型

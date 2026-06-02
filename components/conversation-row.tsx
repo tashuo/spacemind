@@ -40,10 +40,14 @@ let currentDragSourceSpaceId: string | null | undefined = undefined
 const PLATFORM_ABBR: Record<Platform, string> = {
   chatgpt: 'CGT',
   claude: 'CLD',
+  gemini: 'GMN',
+  deepseek: 'DSK',
+  mistral: 'MTL',
 }
 
 // 平台 → 颜色 token(Tailwind class)。
 // 注:这里独立于 Space palette —— 平台标识应该跨空间稳定,不随空间色变化。
+// 三个新平台尽量贴近品牌色:Gemini = Google 蓝、DeepSeek = 深蓝/靛、Mistral = 暖橘红
 const PLATFORM_STYLE: Record<Platform, { bg: string; text: string }> = {
   chatgpt: {
     bg: 'bg-emerald-50 dark:bg-emerald-900/30',
@@ -52,6 +56,18 @@ const PLATFORM_STYLE: Record<Platform, { bg: string; text: string }> = {
   claude: {
     bg: 'bg-orange-50 dark:bg-orange-900/30',
     text: 'text-orange-700 dark:text-orange-300',
+  },
+  gemini: {
+    bg: 'bg-cyan-50 dark:bg-cyan-900/30',
+    text: 'text-cyan-700 dark:text-cyan-300',
+  },
+  deepseek: {
+    bg: 'bg-indigo-50 dark:bg-indigo-900/30',
+    text: 'text-indigo-700 dark:text-indigo-300',
+  },
+  mistral: {
+    bg: 'bg-pink-50 dark:bg-pink-900/30',
+    text: 'text-pink-700 dark:text-pink-300',
   },
 }
 
@@ -148,6 +164,7 @@ export function ConversationRow({
   const platform = conversation.platform
   const platformStyle = PLATFORM_STYLE[platform]
   const platformAbbr = PLATFORM_ABBR[platform]
+  const platformI18nKey = `platform${platform.charAt(0).toUpperCase()}${platform.slice(1)}`
 
   const preview = conversation.preview?.firstUserMessage?.trim() ?? ''
   const previewText =
@@ -300,7 +317,7 @@ export function ConversationRow({
       {/* 左:平台标识(色块 + 缩写)*/}
       <span
         className={`flex-shrink-0 mt-[2px] text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded ${platformStyle.bg} ${platformStyle.text}`}
-        aria-label={t(platform === 'chatgpt' ? 'platformChatgpt' : 'platformClaude')}
+        aria-label={t(platformI18nKey)}
       >
         {platformAbbr}
       </span>

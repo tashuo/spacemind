@@ -50,13 +50,20 @@ export function Overlay() {
 
   // 关闭状态下展示右下角浮动按钮(FAB),提高入口可发现性。
   // 用户即使不知道 Cmd+Shift+K 也能一眼看到这个按钮。
+  // 关键样式(渐变背景 / 文字色)走 inline style 写死 hex —— 宿主页若同样用 Tailwind v4,
+  // 他们注册的 --tw-gradient-* 与 --color-* 会穿透 shadow root,把我们的 utility class 干透明
+  // (DeepSeek 已确认会这样)。Inline style 不依赖 CSS variable,免疫穿透
   if (!open) {
     return (
       <button
         onClick={() => setOpen(true)}
         title="SpaceMind — save current conversation (⌘⇧K)"
         aria-label="Open SpaceMind"
-        className="fixed bottom-6 right-6 w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-purple-700 text-white shadow-lg shadow-purple-500/30 hover:shadow-xl hover:shadow-purple-500/40 hover:scale-105 transition-all duration-150 flex items-center justify-center cursor-pointer ring-1 ring-white/10"
+        style={{
+          backgroundImage: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
+          color: '#ffffff',
+        }}
+        className="fixed bottom-6 right-6 w-12 h-12 rounded-full shadow-lg shadow-purple-500/30 hover:shadow-xl hover:shadow-purple-500/40 hover:scale-105 transition-all duration-150 flex items-center justify-center cursor-pointer ring-1 ring-white/10"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
           <polygon points="12 2 2 7 12 12 22 7 12 2" />
@@ -190,22 +197,30 @@ export function Overlay() {
   )
 }
 
-// content script 的 matches 已经把 host 收敛到这两家,这里只是双保险
+// content script 的 matches 把 host 收敛到这五家,这里只是双保险
 function detectPlatform(href: string): Platform | null {
   if (href.includes('chatgpt.com')) return 'chatgpt'
   if (href.includes('claude.ai')) return 'claude'
+  if (href.includes('gemini.google.com')) return 'gemini'
+  if (href.includes('chat.deepseek.com')) return 'deepseek'
+  if (href.includes('chat.mistral.ai')) return 'mistral'
   return null
 }
 
-// 从 URL 上提取当前会话的 id。多模式 fallback —— 各家平台 SPA 路径偶尔会变,
-// 容忍度比严格 match 更重要。匹配不到则返回 null,UI 层提示用户"打开一个具体对话"
+// 各平台的 conversation URL pattern 集中在这。多模式 fallback —— SPA 路径偶尔会变,
+// 容忍度比严格 match 更重要。匹配不到返回 null,UI 提示用户"打开一个具体对话"
+const URL_PATTERNS: Record<Platform, RegExp[]> = {
+  chatgpt: [/\/c\/([\w-]+)/, /\/chat\/([\w-]+)/],
+  claude: [/\/chat\/([\w-]+)/, /\/chats\/([\w-]+)/, /\/c\/([\w-]+)/],
+  gemini: [/\/app\/([\w-]+)/],
+  deepseek: [/\/a\/chat\/s\/([\w-]+)/, /\/chat\/([\w-]+)/],
+  mistral: [/\/chat\/([\w-]+)/],
+}
+
 function currentConversation(
   platform: Platform,
 ): { id: string; url: string; title: string } | null {
-  const patterns: RegExp[] = platform === 'chatgpt'
-    ? [/\/c\/([\w-]+)/, /\/chat\/([\w-]+)/]
-    : [/\/chat\/([\w-]+)/, /\/chats\/([\w-]+)/, /\/c\/([\w-]+)/]
-  for (const re of patterns) {
+  for (const re of URL_PATTERNS[platform]) {
     const m = re.exec(location.pathname)
     if (m && m[1]) {
       return { id: m[1], url: location.href, title: document.title }

@@ -29,12 +29,15 @@ describe('PlatformSchema', () => {
   it('accepts chatgpt and claude', () => {
     expect(PlatformSchema.safeParse('chatgpt').success).toBe(true)
     expect(PlatformSchema.safeParse('claude').success).toBe(true)
+    expect(PlatformSchema.safeParse('gemini').success).toBe(true)
+    expect(PlatformSchema.safeParse('deepseek').success).toBe(true)
+    expect(PlatformSchema.safeParse('mistral').success).toBe(true)
   })
 
   it('rejects unsupported platforms', () => {
-    expect(PlatformSchema.safeParse('mistral').success).toBe(false)
-    expect(PlatformSchema.safeParse('gemini').success).toBe(false)
+    expect(PlatformSchema.safeParse('grok').success).toBe(false)
     expect(PlatformSchema.safeParse('random-string').success).toBe(false)
+    expect(PlatformSchema.safeParse('').success).toBe(false)
   })
 })
 
@@ -163,8 +166,8 @@ describe('ConversationSchema', () => {
   it('rejects unknown platform', () => {
     const r = ConversationSchema.safeParse({
       id: 'a',
-      platform: 'mistral',
-      url: 'https://mistral.ai/x',
+      platform: 'grok',
+      url: 'https://grok.com/x',
       title: 'T',
       tags: [],
       starred: false,

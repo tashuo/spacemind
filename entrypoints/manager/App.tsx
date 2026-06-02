@@ -55,7 +55,15 @@ export default function App() {
       if (m.kind !== 'conversations:scraped') return
       const added = m.added ?? 0
       if (added > 0) {
-        const platform = m.platform === 'chatgpt' ? 'ChatGPT' : 'Claude'
+        // 平台名标签集中走 i18n key,新平台只需 lib/i18n.ts 加一行 platformX,不用改这里
+        const labels: Record<string, string> = {
+          chatgpt: 'ChatGPT',
+          claude: 'Claude',
+          gemini: 'Gemini',
+          deepseek: 'DeepSeek',
+          mistral: 'Mistral',
+        }
+        const platform = labels[m.platform ?? ''] ?? m.platform ?? ''
         pushToast('info', t('toastCaptured', { n: added, platform }))
       }
       void load()
