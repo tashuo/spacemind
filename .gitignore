@@ -6,3 +6,6 @@ node_modules/
 .env
 .env.local
 dist/
+
+# 截图用的临时演示数据(由 scripts/make-demo-data.mjs 生成)
+spacemind-demo-data.json

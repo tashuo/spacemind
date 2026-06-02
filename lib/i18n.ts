@@ -114,7 +114,7 @@ const messages: Record<Lang, Record<string, string>> = {
     toastImportJsonFailedShape: 'Unrecognized backup format',
 
     // 搜索
-    searchPlaceholder: 'Search across all conversations…',
+    searchPlaceholder: 'Search across all conversations…  (⌘K for commands)',
     searchResultsSummary: '{n} results in {s} spaces',
     searchResultsSummaryOne: '{n} result in {s} space',
     clearSearch: 'Clear',
@@ -290,7 +290,7 @@ const messages: Record<Lang, Record<string, string>> = {
     toastImportJsonFailedShape: '不是 SpaceMind 备份格式',
 
     // 搜索
-    searchPlaceholder: '搜索所有对话…',
+    searchPlaceholder: '搜索所有对话…  (⌘K 唤起命令面板)',
     searchResultsSummary: '在 {s} 个空间中找到 {n} 个结果',
     searchResultsSummaryOne: '在 {s} 个空间中找到 {n} 个结果',
     clearSearch: '清除',
